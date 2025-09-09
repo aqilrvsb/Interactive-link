@@ -2,14 +2,14 @@ import { createContext, useContext, useEffect, useState, ReactNode } from 'react
 import { supabase } from '@/integrations/supabase/client';
 import { toast } from 'react-hot-toast';
 
-interface CustomUser {
+interface User {
   id: string;
   username: string;
   full_name?: string;
 }
 
 interface AuthContextType {
-  user: CustomUser | null;
+  user: User | null;
   loading: boolean;
   signUp: (username: string, password: string, metadata?: { full_name?: string }) => Promise<{ error: any }>;
   signIn: (username: string, password: string) => Promise<{ error: any }>;
@@ -31,7 +31,7 @@ interface AuthProviderProps {
 }
 
 export const AuthProvider = ({ children }: AuthProviderProps) => {
-  const [user, setUser] = useState<CustomUser | null>(null);
+  const [user, setUser] = useState<User | null>(null);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
@@ -40,7 +40,7 @@ export const AuthProvider = ({ children }: AuthProviderProps) => {
     if (storedUser) {
       try {
         setUser(JSON.parse(storedUser));
-      } catch (e) {
+      } catch (error) {
         localStorage.removeItem('auth_user');
       }
     }
@@ -48,77 +48,69 @@ export const AuthProvider = ({ children }: AuthProviderProps) => {
   }, []);
 
   const signUp = async (username: string, password: string, metadata?: { full_name?: string }) => {
-    setLoading(true);
     try {
       const { data, error } = await supabase.rpc('register_user', {
         p_username: username,
         p_password: password,
-        p_full_name: metadata?.full_name
+        p_full_name: metadata?.full_name || null
       });
-      
-      // Type assertion to handle Supabase's Json type
+
+      if (error) {
+        toast.error('Registration failed');
+        return { error };
+      }
+
       const result = data as any;
-      
       if (result?.error) {
         toast.error(result.error);
-        return { error: new Error(result.error) };
+        return { error: result.error };
       }
-      
-      if (result?.success && result?.user) {
-        const customUser: CustomUser = {
-          id: result.user.id,
-          username: result.user.username,
-          full_name: result.user.full_name
-        };
-        setUser(customUser);
-        localStorage.setItem('auth_user', JSON.stringify(customUser));
+
+      if (result?.success) {
+        const newUser = result.user;
+        setUser(newUser);
+        localStorage.setItem('auth_user', JSON.stringify(newUser));
         toast.success('Account created successfully!');
         return { error: null };
       }
-      
-      return { error: new Error('Unknown error during signup') };
-    } catch (error: any) {
-      toast.error(error.message || 'Signup failed');
+
+      return { error: 'Unknown error occurred' };
+    } catch (error) {
+      toast.error('Registration failed');
       return { error };
-    } finally {
-      setLoading(false);
     }
   };
 
   const signIn = async (username: string, password: string) => {
-    setLoading(true);
     try {
       const { data, error } = await supabase.rpc('login_user', {
         p_username: username,
         p_password: password
       });
-      
-      // Type assertion to handle Supabase's Json type
+
+      if (error) {
+        toast.error('Login failed');
+        return { error };
+      }
+
       const result = data as any;
-      
       if (result?.error) {
         toast.error(result.error);
-        return { error: new Error(result.error) };
+        return { error: result.error };
       }
-      
-      if (result?.success && result?.user) {
-        const customUser: CustomUser = {
-          id: result.user.id,
-          username: result.user.username,
-          full_name: result.user.full_name
-        };
-        setUser(customUser);
-        localStorage.setItem('auth_user', JSON.stringify(customUser));
+
+      if (result?.success) {
+        const loggedInUser = result.user;
+        setUser(loggedInUser);
+        localStorage.setItem('auth_user', JSON.stringify(loggedInUser));
         toast.success('Welcome back!');
         return { error: null };
       }
-      
-      return { error: new Error('Invalid username or password') };
-    } catch (error: any) {
-      toast.error(error.message || 'Login failed'); 
+
+      return { error: 'Unknown error occurred' };
+    } catch (error) {
+      toast.error('Login failed');
       return { error };
-    } finally {
-      setLoading(false);
     }
   };
 

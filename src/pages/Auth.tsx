@@ -7,6 +7,7 @@ import { Label } from '@/components/ui/label';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { ArrowLeft } from 'lucide-react';
+import { toast } from 'react-hot-toast';
 
 const Auth = () => {
   const [isLoading, setIsLoading] = useState(false);
@@ -27,6 +28,12 @@ const Auth = () => {
   const handleSignUp = async (e: React.FormEvent) => {
     e.preventDefault();
     if (signUpData.password !== signUpData.confirmPassword) {
+      toast.error('Passwords do not match');
+      return;
+    }
+
+    if (signUpData.password.length < 6) {
+      toast.error('Password must be at least 6 characters');
       return;
     }
 
