@@ -1,11 +1,15 @@
 import { createContext, useContext, useEffect, useState, ReactNode } from 'react';
-import { User, Session } from '@supabase/supabase-js';
 import { supabase } from '@/integrations/supabase/client';
 import { toast } from 'react-hot-toast';
 
+interface CustomUser {
+  id: string;
+  username: string;
+  full_name?: string;
+}
+
 interface AuthContextType {
-  user: User | null;
-  session: Session | null;
+  user: CustomUser | null;
   loading: boolean;
   signUp: (username: string, password: string, metadata?: { full_name?: string }) => Promise<{ error: any }>;
   signIn: (username: string, password: string) => Promise<{ error: any }>;
@@ -27,82 +31,105 @@ interface AuthProviderProps {
 }
 
 export const AuthProvider = ({ children }: AuthProviderProps) => {
-  const [user, setUser] = useState<User | null>(null);
-  const [session, setSession] = useState<Session | null>(null);
+  const [user, setUser] = useState<CustomUser | null>(null);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    // Set up auth state listener
-    const { data: { subscription } } = supabase.auth.onAuthStateChange(
-      (event, session) => {
-        setSession(session);
-        setUser(session?.user ?? null);
-        setLoading(false);
+    // Check for stored user session
+    const storedUser = localStorage.getItem('auth_user');
+    if (storedUser) {
+      try {
+        setUser(JSON.parse(storedUser));
+      } catch (e) {
+        localStorage.removeItem('auth_user');
       }
-    );
-
-    // Get initial session
-    supabase.auth.getSession().then(({ data: { session } }) => {
-      setSession(session);
-      setUser(session?.user ?? null);
-      setLoading(false);
-    });
-
-    return () => subscription.unsubscribe();
+    }
+    setLoading(false);
   }, []);
 
   const signUp = async (username: string, password: string, metadata?: { full_name?: string }) => {
-    // Create a valid email format for Supabase internally
-    const email = `${username}@domain.com`;
-    
-    const { error } = await supabase.auth.signUp({
-      email,
-      password,
-      options: {
-        emailRedirectTo: undefined, // Disable email confirmation
-        data: { username, ...metadata }
+    setLoading(true);
+    try {
+      const { data, error } = await supabase.rpc('register_user', {
+        p_username: username,
+        p_password: password,
+        p_full_name: metadata?.full_name
+      });
+      
+      // Type assertion to handle Supabase's Json type
+      const result = data as any;
+      
+      if (result?.error) {
+        toast.error(result.error);
+        return { error: new Error(result.error) };
       }
-    });
-    
-    if (error) {
-      toast.error(error.message);
-    } else {
-      toast.success('Account created successfully!');
+      
+      if (result?.success && result?.user) {
+        const customUser: CustomUser = {
+          id: result.user.id,
+          username: result.user.username,
+          full_name: result.user.full_name
+        };
+        setUser(customUser);
+        localStorage.setItem('auth_user', JSON.stringify(customUser));
+        toast.success('Account created successfully!');
+        return { error: null };
+      }
+      
+      return { error: new Error('Unknown error during signup') };
+    } catch (error: any) {
+      toast.error(error.message || 'Signup failed');
+      return { error };
+    } finally {
+      setLoading(false);
     }
-    
-    return { error };
   };
 
   const signIn = async (username: string, password: string) => {
-    // Create the same email format used during signup
-    const email = `${username}@domain.com`;
-    
-    const { error } = await supabase.auth.signInWithPassword({
-      email,
-      password,
-    });
-    
-    if (error) {
-      toast.error('Invalid username or password');
-    } else {
-      toast.success('Welcome back!');
+    setLoading(true);
+    try {
+      const { data, error } = await supabase.rpc('login_user', {
+        p_username: username,
+        p_password: password
+      });
+      
+      // Type assertion to handle Supabase's Json type
+      const result = data as any;
+      
+      if (result?.error) {
+        toast.error(result.error);
+        return { error: new Error(result.error) };
+      }
+      
+      if (result?.success && result?.user) {
+        const customUser: CustomUser = {
+          id: result.user.id,
+          username: result.user.username,
+          full_name: result.user.full_name
+        };
+        setUser(customUser);
+        localStorage.setItem('auth_user', JSON.stringify(customUser));
+        toast.success('Welcome back!');
+        return { error: null };
+      }
+      
+      return { error: new Error('Invalid username or password') };
+    } catch (error: any) {
+      toast.error(error.message || 'Login failed'); 
+      return { error };
+    } finally {
+      setLoading(false);
     }
-    
-    return { error };
   };
 
   const signOut = async () => {
-    const { error } = await supabase.auth.signOut();
-    if (error) {
-      toast.error(error.message);
-    } else {
-      toast.success('Signed out successfully');
-    }
+    setUser(null);
+    localStorage.removeItem('auth_user');
+    toast.success('Signed out successfully');
   };
 
   const value = {
     user,
-    session,
     loading,
     signUp,
     signIn,
