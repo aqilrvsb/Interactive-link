@@ -59,6 +59,7 @@ export const AuthProvider = ({ children }: AuthProviderProps) => {
       email,
       password,
       options: {
+        emailRedirectTo: undefined, // Disable email confirmation
         data: { username, ...metadata }
       }
     });
