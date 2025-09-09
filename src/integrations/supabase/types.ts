@@ -298,12 +298,50 @@ export type Database = {
         }
         Relationships: []
       }
+      users: {
+        Row: {
+          created_at: string | null
+          full_name: string | null
+          id: string
+          password_hash: string
+          updated_at: string | null
+          username: string
+        }
+        Insert: {
+          created_at?: string | null
+          full_name?: string | null
+          id?: string
+          password_hash: string
+          updated_at?: string | null
+          username: string
+        }
+        Update: {
+          created_at?: string | null
+          full_name?: string | null
+          id?: string
+          password_hash?: string
+          updated_at?: string | null
+          username?: string
+        }
+        Relationships: []
+      }
     }
     Views: {
       [_ in never]: never
     }
     Functions: {
-      [_ in never]: never
+      hash_password: {
+        Args: { password: string }
+        Returns: string
+      }
+      login_user: {
+        Args: { p_password: string; p_username: string }
+        Returns: Json
+      }
+      register_user: {
+        Args: { p_full_name?: string; p_password: string; p_username: string }
+        Returns: Json
+      }
     }
     Enums: {
       [_ in never]: never
