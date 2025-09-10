@@ -23,7 +23,7 @@ const WebsiteBuilder = () => {
   const { projects, createProject, updateProject } = useProjects();
   const { createVersion } = useSiteVersions(projectId);
 
-  const [htmlCode, setHtmlCode] = useState(`<!DOCTYPE html>
+  const [code, setCode] = useState(`<!DOCTYPE html>
 <html lang="en">
 <head>
     <meta charset="UTF-8">
@@ -74,7 +74,7 @@ const WebsiteBuilder = () => {
 <body>
     <div class="container">
         <h1>Welcome to Your Website!</h1>
-        <p>This is your starting template. Edit the HTML, CSS, and JavaScript to build your perfect website.</p>
+        <p>Paste any HTML, CSS, JavaScript, React JSX, or other web code here and see it run instantly!</p>
         <button class="button" onclick="alert('Hello World!')">Click Me!</button>
     </div>
     
@@ -83,9 +83,6 @@ const WebsiteBuilder = () => {
     </script>
 </body>
 </html>`);
-  
-  const [cssCode, setCssCode] = useState('/* Additional CSS styles go here */');
-  const [jsCode, setJsCode] = useState('// Additional JavaScript code goes here\nconsole.log("JavaScript is ready!");');
   const [isSaving, setIsSaving] = useState(false);
   const [currentProject, setCurrentProject] = useState<any>(null);
   const [isFullPreview, setIsFullPreview] = useState(false);
@@ -97,78 +94,33 @@ const WebsiteBuilder = () => {
       const project = projects.find(p => p.id === projectId);
       if (project && project.code_content) {
         setCurrentProject(project);
-        // Try to parse the code content if it's structured
-        try {
-          const parsed = JSON.parse(project.code_content);
-          if (parsed.html) setHtmlCode(parsed.html);
-          if (parsed.css) setCssCode(parsed.css);
-          if (parsed.js) setJsCode(parsed.js);
-        } catch {
-          // If not JSON, treat as HTML
-          setHtmlCode(project.code_content);
-        }
+        setCode(project.code_content);
       }
     }
   }, [projectId, projects]);
 
-  const buildFullHTML = () => {
-    // If HTML already includes CSS and JS, return as is
-    if (htmlCode.includes('<style>') || htmlCode.includes('<script>')) {
-      return htmlCode;
-    }
-
-    // Otherwise, inject CSS and JS
-    let fullHTML = htmlCode;
-    
-    if (cssCode.trim() && cssCode.trim() !== '/* Additional CSS styles go here */') {
-      const cssTag = `
-    <style>
-${cssCode}
-    </style>`;
-      if (fullHTML.includes('</head>')) {
-        fullHTML = fullHTML.replace('</head>', `${cssTag}
-</head>`);
-      } else {
-        fullHTML = `<head>${cssTag}
-</head>
-${fullHTML}`;
-      }
-    }
-
-    if (jsCode.trim() && jsCode.trim() !== '// Additional JavaScript code goes here\nconsole.log("JavaScript is ready!");') {
-      const jsTag = `
-    <script>
-${jsCode}
-    </script>`;
-      if (fullHTML.includes('</body>')) {
-        fullHTML = fullHTML.replace('</body>', `${jsTag}
-</body>`);
-      } else {
-        fullHTML = `${fullHTML}
-<script>${jsCode}</script>`;
-      }
-    }
-
-    return fullHTML;
+  const processCode = () => {
+    // Return the code as-is - it can be any format (HTML, React JSX, etc.)
+    return code;
   };
 
   const updatePreview = () => {
-    const fullHTML = buildFullHTML();
+    const processedCode = processCode();
     
     // Update main iframe
     if (iframeRef.current) {
-      iframeRef.current.srcdoc = fullHTML;
+      iframeRef.current.srcdoc = processedCode;
     }
     
     // Update full preview iframe if it exists
     if (fullPreviewIframeRef.current) {
-      fullPreviewIframeRef.current.srcdoc = fullHTML;
+      fullPreviewIframeRef.current.srcdoc = processedCode;
     }
   };
 
   const openInNewTab = () => {
-    const fullHTML = buildFullHTML();
-    const blob = new Blob([fullHTML], { type: 'text/html' });
+    const processedCode = processCode();
+    const blob = new Blob([processedCode], { type: 'text/html' });
     const url = URL.createObjectURL(blob);
     window.open(url, '_blank');
     // Clean up the URL object after a short delay
@@ -179,7 +131,7 @@ ${jsCode}
   useEffect(() => {
     const timeoutId = setTimeout(updatePreview, 300);
     return () => clearTimeout(timeoutId);
-  }, [htmlCode, cssCode, jsCode]);
+  }, [code]);
 
   // Handle ESC key for full preview mode
   useEffect(() => {
@@ -208,19 +160,14 @@ ${jsCode}
       return;
     }
 
-    if (!htmlCode.trim() && !cssCode.trim() && !jsCode.trim()) {
+    if (!code.trim()) {
       toast.error('Please add some code before saving');
       return;
     }
 
     setIsSaving(true);
     try {
-      const fullHTML = buildFullHTML();
-      const codeContent = JSON.stringify({
-        html: htmlCode,
-        css: cssCode,
-        js: jsCode
-      });
+      const processedCode = processCode();
 
       let project = currentProject;
 
@@ -229,8 +176,8 @@ ${jsCode}
         const title = `Website - ${new Date().toLocaleDateString()}`;
         project = await createProject({
           title,
-          description: 'A website built with the website builder',
-          code_content: codeContent,
+          description: 'A website built with the code editor',
+          code_content: code,
           language: 'html',
           is_public: false,
         });
@@ -243,7 +190,7 @@ ${jsCode}
       } else {
         // Update existing project
         project = await updateProject(project.id, {
-          code_content: codeContent,
+          code_content: code,
           updated_at: new Date().toISOString()
         });
       }
@@ -252,9 +199,9 @@ ${jsCode}
       if (project) {
         await createVersion({
           project_id: project.id,
-          html_content: fullHTML,
-          css_content: cssCode.trim() || null,
-          js_content: jsCode.trim() || null,
+          html_content: processedCode,
+          css_content: null,
+          js_content: null,
           assets: []
         });
 
@@ -272,9 +219,7 @@ ${jsCode}
 
   const handleEditVersion = (version: SiteVersion) => {
     // Load version content into editor
-    setHtmlCode(version.html_content);
-    setCssCode(version.css_content || '/* Additional CSS styles go here */');
-    setJsCode(version.js_content || '// Additional JavaScript code goes here\nconsole.log("JavaScript is ready!");');
+    setCode(version.html_content);
     toast.success(`Loaded version ${version.version_number} for editing`);
   };
 
@@ -288,7 +233,7 @@ ${jsCode}
           </Button>
           <h1 className="text-lg font-semibold flex items-center gap-2">
             <Code2 className="h-5 w-5" />
-            Website Builder
+            Code Editor
           </h1>
         </div>
         <div className="flex items-center gap-2">
@@ -304,135 +249,67 @@ ${jsCode}
           {/* Code Editor Panel */}
           <ResizablePanel defaultSize={30} minSize={20}>
             <div className="h-full flex flex-col">
-              <Tabs defaultValue="html" className="flex-1 flex flex-col">
-                <div className="border-b px-4 py-2">
-                  <TabsList className="grid w-full max-w-md grid-cols-3">
-                    <TabsTrigger value="html">HTML</TabsTrigger>
-                    <TabsTrigger value="css">CSS</TabsTrigger>
-                    <TabsTrigger value="js">JavaScript</TabsTrigger>
-                  </TabsList>
-                </div>
-
-                <TabsContent value="html" className="flex-1 p-4 m-0">
-                  <Textarea
-                    placeholder="Enter your HTML code here..."
-                    value={htmlCode}
-                    onChange={(e) => setHtmlCode(e.target.value)}
-                    className="h-full resize-none font-mono text-sm"
-                  />
-                </TabsContent>
-
-                <TabsContent value="css" className="flex-1 p-4 m-0">
-                  <Textarea
-                    placeholder="Enter your CSS code here..."
-                    value={cssCode}
-                    onChange={(e) => setCssCode(e.target.value)}
-                    className="h-full resize-none font-mono text-sm"
-                  />
-                </TabsContent>
-
-                <TabsContent value="js" className="flex-1 p-4 m-0">
-                  <Textarea
-                    placeholder="Enter your JavaScript code here..."
-                    value={jsCode}
-                    onChange={(e) => setJsCode(e.target.value)}
-                    className="h-full resize-none font-mono text-sm"
-                  />
-                </TabsContent>
-              </Tabs>
+              <div className="border-b px-4 py-3">
+                <h3 className="text-sm font-medium">Code Editor</h3>
+                <p className="text-xs text-muted-foreground mt-1">
+                  Paste any HTML, CSS, JavaScript, React JSX, or other web code
+                </p>
+              </div>
+              <div className="flex-1 p-4">
+                <Textarea
+                  placeholder="Paste your code here... HTML, CSS, JavaScript, React JSX, or any web code will work!"
+                  value={code}
+                  onChange={(e) => setCode(e.target.value)}
+                  className="h-full resize-none font-mono text-sm"
+                />
+              </div>
             </div>
           </ResizablePanel>
 
           <ResizableHandle />
 
-          {/* Preview & Management Panel */}
+          {/* Preview Panel */}
           <ResizablePanel defaultSize={70} minSize={30}>
-            <Tabs defaultValue="preview" className="h-full flex flex-col">
-              <div className="border-b px-4 py-2">
-                <TabsList className="grid w-full max-w-lg grid-cols-4">
-                  <TabsTrigger value="preview">Preview</TabsTrigger>
-                  <TabsTrigger value="files">Files</TabsTrigger>
-                  <TabsTrigger value="domains">Domains</TabsTrigger>
-                  <TabsTrigger value="settings">Settings</TabsTrigger>
-                </TabsList>
-              </div>
-
-              <TabsContent value="preview" className="flex-1 p-0 m-0 h-full">
-                <Card className="h-full flex flex-col">
-                  <CardHeader className="flex-none pb-2 px-3 py-2">
-                    <div className="flex items-center justify-between">
-                      <CardTitle className="text-sm flex items-center gap-2">
-                        <Globe className="h-3 w-3" />
-                        Preview
-                      </CardTitle>
-                      <div className="flex items-center gap-1">
-                        <Button
-                          variant="ghost"
-                          size="sm"
-                          onClick={openInNewTab}
-                          className="h-7 w-7 p-0"
-                          title="Open in new tab"
-                        >
-                          <ExternalLink className="h-3 w-3" />
-                        </Button>
-                        <Button
-                          variant="ghost"
-                          size="sm"
-                          onClick={() => setIsFullPreview(true)}
-                          className="h-7 w-7 p-0"
-                          title="Full Preview"
-                        >
-                          <Maximize className="h-3 w-3" />
-                        </Button>
-                      </div>
-                    </div>
-                  </CardHeader>
-                  <CardContent className="flex-1 min-h-0 overflow-hidden p-2">
-                    <div className="h-full border rounded-lg overflow-hidden">
-                      <iframe
-                        ref={iframeRef}
-                        className="w-full h-full block border-0"
-                        title="Website Preview"
-                        sandbox="allow-scripts allow-same-origin allow-forms"
-                      />
-                    </div>
-                  </CardContent>
-                </Card>
-              </TabsContent>
-
-              <TabsContent value="files" className="flex-1 p-4 m-0 overflow-auto">
-                {currentProject ? (
-                  <ProjectFilesView 
-                    projectId={currentProject.id} 
-                    onEditVersion={handleEditVersion}
+            <Card className="h-full flex flex-col">
+              <CardHeader className="flex-none pb-2 px-3 py-2">
+                <div className="flex items-center justify-between">
+                  <CardTitle className="text-sm flex items-center gap-2">
+                    <Globe className="h-3 w-3" />
+                    Live Preview
+                  </CardTitle>
+                  <div className="flex items-center gap-1">
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      onClick={openInNewTab}
+                      className="h-7 w-7 p-0"
+                      title="Open in new tab"
+                    >
+                      <ExternalLink className="h-3 w-3" />
+                    </Button>
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      onClick={() => setIsFullPreview(true)}
+                      className="h-7 w-7 p-0"
+                      title="Full Preview"
+                    >
+                      <Maximize className="h-3 w-3" />
+                    </Button>
+                  </div>
+                </div>
+              </CardHeader>
+              <CardContent className="flex-1 min-h-0 overflow-hidden p-2">
+                <div className="h-full border rounded-lg overflow-hidden">
+                  <iframe
+                    ref={iframeRef}
+                    className="w-full h-full block border-0"
+                    title="Code Preview"
+                    sandbox="allow-scripts allow-same-origin allow-forms"
                   />
-                ) : (
-                  <div className="flex items-center justify-center h-full text-center">
-                    <div className="text-muted-foreground">
-                      <Files className="h-12 w-12 mx-auto mb-4 opacity-50" />
-                      <div>Save your project first to see versions</div>
-                    </div>
-                  </div>
-                )}
-              </TabsContent>
-
-              <TabsContent value="domains" className="flex-1 p-4 m-0 overflow-auto">
-                {currentProject ? (
-                  <DomainManagement projectId={currentProject.id} />
-                ) : (
-                  <div className="flex items-center justify-center h-full text-center">
-                    <div className="text-muted-foreground">
-                      <Globe className="h-12 w-12 mx-auto mb-4 opacity-50" />
-                      <div>Save your project first to manage domains</div>
-                    </div>
-                  </div>
-                )}
-              </TabsContent>
-
-              <TabsContent value="settings" className="flex-1 p-4 m-0 overflow-auto">
-                <SupabaseSettings />
-              </TabsContent>
-            </Tabs>
+                </div>
+              </CardContent>
+            </Card>
           </ResizablePanel>
         </ResizablePanelGroup>
       </div>
