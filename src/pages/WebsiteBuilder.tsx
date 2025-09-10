@@ -96,8 +96,20 @@ const WebsiteBuilder = () => {
         setCurrentProject(project);
         setCode(project.code_content);
       }
+    } else if (!user) {
+      // Load test project from localStorage if not logged in
+      const testCode = localStorage.getItem('test-project-code');
+      if (testCode) {
+        setCode(testCode);
+        setCurrentProject({
+          id: 'test-project',
+          title: 'Test Project',
+          code_content: testCode,
+          created_at: new Date().toISOString()
+        });
+      }
     }
-  }, [projectId, projects]);
+  }, [projectId, projects, user]);
 
   const processCode = () => {
     // Return the code as-is - it can be any format (HTML, React JSX, etc.)
@@ -155,11 +167,6 @@ const WebsiteBuilder = () => {
   }, [isFullPreview]);
 
   const handleSave = async () => {
-    if (!user) {
-      toast.error('Please log in to save your project');
-      return;
-    }
-
     if (!code.trim()) {
       toast.error('Please add some code before saving');
       return;
@@ -169,9 +176,25 @@ const WebsiteBuilder = () => {
     try {
       const processedCode = processCode();
 
+      if (!user) {
+        // Test mode - just save to localStorage and show success
+        const testProject = {
+          id: 'test-project',
+          title: `Test Project - ${new Date().toLocaleDateString()}`,
+          code_content: code,
+          created_at: new Date().toISOString()
+        };
+        localStorage.setItem('test-project-code', code);
+        setCurrentProject(testProject);
+        toast.success('Code saved locally for testing! Login to save permanently.');
+        updatePreview();
+        setIsSaving(false);
+        return;
+      }
+
       let project = currentProject;
 
-      if (!project) {
+      if (!project || project.id === 'test-project') {
         // Create new project
         const title = `Website - ${new Date().toLocaleDateString()}`;
         project = await createProject({
@@ -205,6 +228,7 @@ const WebsiteBuilder = () => {
           assets: []
         });
 
+        toast.success('Project saved and versioned successfully!');
         // Auto-run the saved HTML in preview
         updatePreview();
       }
@@ -239,7 +263,7 @@ const WebsiteBuilder = () => {
         <div className="flex items-center gap-2">
           <Button onClick={handleSave} disabled={isSaving} className="flex items-center gap-2">
             <Save className="h-4 w-4" />
-            {isSaving ? 'Saving...' : 'Save & Version'}
+            {isSaving ? 'Saving...' : user ? 'Save & Version' : 'Save (Test Mode)'}
           </Button>
         </div>
       </header>
@@ -270,46 +294,70 @@ const WebsiteBuilder = () => {
 
           {/* Preview Panel */}
           <ResizablePanel defaultSize={70} minSize={30}>
-            <Card className="h-full flex flex-col">
-              <CardHeader className="flex-none pb-2 px-3 py-2">
-                <div className="flex items-center justify-between">
-                  <CardTitle className="text-sm flex items-center gap-2">
-                    <Globe className="h-3 w-3" />
-                    Live Preview
-                  </CardTitle>
-                  <div className="flex items-center gap-1">
-                    <Button
-                      variant="ghost"
-                      size="sm"
-                      onClick={openInNewTab}
-                      className="h-7 w-7 p-0"
-                      title="Open in new tab"
-                    >
-                      <ExternalLink className="h-3 w-3" />
-                    </Button>
-                    <Button
-                      variant="ghost"
-                      size="sm"
-                      onClick={() => setIsFullPreview(true)}
-                      className="h-7 w-7 p-0"
-                      title="Full Preview"
-                    >
-                      <Maximize className="h-3 w-3" />
-                    </Button>
+            <Tabs defaultValue="preview" className="h-full flex flex-col">
+              <div className="border-b px-4 py-2">
+                <TabsList className="grid w-full max-w-md grid-cols-2">
+                  <TabsTrigger value="preview">Preview</TabsTrigger>
+                  <TabsTrigger value="domains">Domains</TabsTrigger>
+                </TabsList>
+              </div>
+
+              <TabsContent value="preview" className="flex-1 p-0 m-0 h-full">
+                <Card className="h-full flex flex-col">
+                  <CardHeader className="flex-none pb-2 px-3 py-2">
+                    <div className="flex items-center justify-between">
+                      <CardTitle className="text-sm flex items-center gap-2">
+                        <Globe className="h-3 w-3" />
+                        Live Preview
+                      </CardTitle>
+                      <div className="flex items-center gap-1">
+                        <Button
+                          variant="ghost"
+                          size="sm"
+                          onClick={openInNewTab}
+                          className="h-7 w-7 p-0"
+                          title="Open in new tab"
+                        >
+                          <ExternalLink className="h-3 w-3" />
+                        </Button>
+                        <Button
+                          variant="ghost"
+                          size="sm"
+                          onClick={() => setIsFullPreview(true)}
+                          className="h-7 w-7 p-0"
+                          title="Full Preview"
+                        >
+                          <Maximize className="h-3 w-3" />
+                        </Button>
+                      </div>
+                    </div>
+                  </CardHeader>
+                  <CardContent className="flex-1 min-h-0 overflow-hidden p-2">
+                    <div className="h-full border rounded-lg overflow-hidden">
+                      <iframe
+                        ref={iframeRef}
+                        className="w-full h-full block border-0"
+                        title="Code Preview"
+                        sandbox="allow-scripts allow-same-origin allow-forms"
+                      />
+                    </div>
+                  </CardContent>
+                </Card>
+              </TabsContent>
+
+              <TabsContent value="domains" className="flex-1 p-4 m-0 overflow-auto">
+                {currentProject ? (
+                  <DomainManagement projectId={currentProject.id} />
+                ) : (
+                  <div className="flex items-center justify-center h-full text-center">
+                    <div className="text-muted-foreground">
+                      <Globe className="h-12 w-12 mx-auto mb-4 opacity-50" />
+                      <div>Save your project first to manage domains</div>
+                    </div>
                   </div>
-                </div>
-              </CardHeader>
-              <CardContent className="flex-1 min-h-0 overflow-hidden p-2">
-                <div className="h-full border rounded-lg overflow-hidden">
-                  <iframe
-                    ref={iframeRef}
-                    className="w-full h-full block border-0"
-                    title="Code Preview"
-                    sandbox="allow-scripts allow-same-origin allow-forms"
-                  />
-                </div>
-              </CardContent>
-            </Card>
+                )}
+              </TabsContent>
+            </Tabs>
           </ResizablePanel>
         </ResizablePanelGroup>
       </div>
