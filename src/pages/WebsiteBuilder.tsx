@@ -140,7 +140,7 @@ const WebsiteBuilder = () => {
     setTimeout(() => URL.revokeObjectURL(url), 1000);
   };
 
-  const openInWebsiteMode = () => {
+  const openInWebsiteMode = async () => {
     if (!currentProject || !currentProject.id) {
       toast.error('Please save your project first to use Website Mode');
       return;
@@ -163,15 +163,35 @@ const WebsiteBuilder = () => {
       // Clean up the URL object after a delay
       setTimeout(() => URL.revokeObjectURL(url), 30000);
     } else {
-      // Logged in user - use direct Supabase storage URL (permanent file)
-      const websiteUrl = `https://mvmwcgnlebbesarvsvxk.supabase.co/storage/v1/object/public/websites/${currentProject.id}/index.html`;
-      
-      const websiteWindow = window.open(websiteUrl, '_blank', 'toolbar=yes,scrollbars=yes,resizable=yes,width=1200,height=800');
-      
-      if (websiteWindow) {
-        toast.success('Website opened from permanent file! URL: ' + websiteUrl);
-      } else {
-        toast.error('Please allow pop-ups to use Website Mode');
+      try {
+        // Fetch HTML content from Supabase storage
+        const { data, error } = await supabase.storage
+          .from('websites')
+          .download(`${currentProject.id}/index.html`);
+        
+        if (error || !data) {
+          toast.error('Failed to load website content');
+          return;
+        }
+        
+        // Convert blob to text and create new blob with correct MIME type
+        const htmlContent = await data.text();
+        const htmlBlob = new Blob([htmlContent], { type: 'text/html' });
+        const url = URL.createObjectURL(htmlBlob);
+        
+        const websiteWindow = window.open(url, '_blank', 'toolbar=yes,scrollbars=yes,resizable=yes,width=1200,height=800');
+        
+        if (websiteWindow) {
+          toast.success('Website opened from permanent file!');
+        } else {
+          toast.error('Please allow pop-ups to use Website Mode');
+        }
+        
+        // Clean up the URL object after a delay
+        setTimeout(() => URL.revokeObjectURL(url), 30000);
+      } catch (error) {
+        console.error('Error opening website mode:', error);
+        toast.error('Failed to open website mode');
       }
     }
   };
