@@ -1,6 +1,7 @@
 import { createContext, useContext, useEffect, useState, ReactNode } from 'react';
 import { supabase } from '@/integrations/supabase/client';
 import { toast } from 'react-hot-toast';
+import { Session, User as SupabaseUser } from '@supabase/supabase-js';
 
 interface User {
   id: string;
@@ -10,6 +11,7 @@ interface User {
 
 interface AuthContextType {
   user: User | null;
+  session: Session | null;
   loading: boolean;
   signUp: (username: string, password: string, metadata?: { full_name?: string }) => Promise<{ error: any }>;
   signIn: (username: string, password: string) => Promise<{ error: any }>;
@@ -32,19 +34,62 @@ interface AuthProviderProps {
 
 export const AuthProvider = ({ children }: AuthProviderProps) => {
   const [user, setUser] = useState<User | null>(null);
+  const [session, setSession] = useState<Session | null>(null);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    // Check for stored user session
-    const storedUser = localStorage.getItem('auth_user');
-    if (storedUser) {
-      try {
-        setUser(JSON.parse(storedUser));
-      } catch (error) {
-        localStorage.removeItem('auth_user');
+    // Set up auth state listener FIRST
+    const { data: { subscription } } = supabase.auth.onAuthStateChange(
+      async (event, session) => {
+        setSession(session);
+        
+        // If we have a session, fetch user profile from our custom users table
+        if (session?.user) {
+          setTimeout(async () => {
+            try {
+              const { data: userData, error } = await supabase
+                .from('users')
+                .select('id, username, full_name')
+                .eq('id', session.user.id)
+                .maybeSingle();
+              
+              if (userData && !error) {
+                setUser(userData);
+                localStorage.setItem('auth_user', JSON.stringify(userData));
+              }
+            } catch (error) {
+              console.error('Error fetching user profile:', error);
+            }
+          }, 0);
+        } else {
+          setUser(null);
+          localStorage.removeItem('auth_user');
+        }
+        
+        setLoading(false);
       }
-    }
-    setLoading(false);
+    );
+
+    // THEN check for existing session
+    supabase.auth.getSession().then(({ data: { session } }) => {
+      if (session) {
+        setSession(session);
+        // User profile will be fetched by the auth state listener
+      } else {
+        // Check for stored user session as fallback for custom auth
+        const storedUser = localStorage.getItem('auth_user');
+        if (storedUser) {
+          try {
+            setUser(JSON.parse(storedUser));
+          } catch (error) {
+            localStorage.removeItem('auth_user');
+          }
+        }
+        setLoading(false);
+      }
+    });
+
+    return () => subscription.unsubscribe();
   }, []);
 
   const signUp = async (username: string, password: string, metadata?: { full_name?: string }) => {
@@ -124,6 +169,7 @@ export const AuthProvider = ({ children }: AuthProviderProps) => {
 
   const value = {
     user,
+    session,
     loading,
     signUp,
     signIn,
