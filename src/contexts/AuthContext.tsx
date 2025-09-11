@@ -49,25 +49,19 @@ export const AuthProvider = ({ children }: AuthProviderProps) => {
 
   const signUp = async (username: string, password: string, metadata?: { full_name?: string }) => {
     try {
-      console.log('Attempting signup with:', { username, full_name: metadata?.full_name });
-      
       const { data, error } = await supabase.rpc('register_user', {
         p_username: username,
         p_password: password,
         p_full_name: metadata?.full_name || null
       });
 
-      console.log('Signup RPC response:', { data, error });
-
       if (error) {
-        console.error('Supabase RPC error:', error);
         toast.error(`Registration failed: ${error.message}`);
         return { error };
       }
 
       const result = data as any;
       if (result?.error) {
-        console.error('Function returned error:', result.error);
         toast.error(result.error);
         return { error: result.error };
       }
@@ -80,11 +74,9 @@ export const AuthProvider = ({ children }: AuthProviderProps) => {
         return { error: null };
       }
 
-      console.error('Unexpected result format:', result);
       toast.error('Registration failed - unexpected response');
       return { error: 'Unknown error occurred' };
     } catch (error) {
-      console.error('Signup catch block error:', error);
       toast.error(`Registration failed: ${error}`);
       return { error };
     }
@@ -92,24 +84,18 @@ export const AuthProvider = ({ children }: AuthProviderProps) => {
 
   const signIn = async (username: string, password: string) => {
     try {
-      console.log('Attempting signin with username:', username);
-      
       const { data, error } = await supabase.rpc('login_user', {
         p_username: username,
         p_password: password
       });
 
-      console.log('Signin RPC response:', { data, error });
-
       if (error) {
-        console.error('Supabase RPC error:', error);
         toast.error(`Login failed: ${error.message}`);
         return { error };
       }
 
       const result = data as any;
       if (result?.error) {
-        console.error('Function returned error:', result.error);
         toast.error(result.error);
         return { error: result.error };
       }
@@ -122,11 +108,9 @@ export const AuthProvider = ({ children }: AuthProviderProps) => {
         return { error: null };
       }
 
-      console.error('Unexpected result format:', result);
       toast.error('Login failed - unexpected response');
       return { error: 'Unknown error occurred' };
     } catch (error) {
-      console.error('Signin catch block error:', error);
       toast.error(`Login failed: ${error}`);
       return { error };
     }
