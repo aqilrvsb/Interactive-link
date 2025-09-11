@@ -255,17 +255,20 @@ const WebsiteBuilder = () => {
         });
       }
 
-      // Save HTML file to Supabase storage
-      if (project) {
-        try {
-          const htmlFile = new File([processedCode], 'index.html', { type: 'text/html' });
-          
-          const { error: uploadError } = await supabase.storage
-            .from('websites')
-            .upload(`${project.id}/index.html`, htmlFile, {
-              upsert: true,
-              contentType: 'text/html'
-            });
+        // Save HTML file to Supabase storage
+        if (project) {
+          try {
+            // Create blob with proper MIME type and upload as buffer
+            const htmlBlob = new Blob([processedCode], { type: 'text/html; charset=utf-8' });
+            const arrayBuffer = await htmlBlob.arrayBuffer();
+            
+            const { error: uploadError } = await supabase.storage
+              .from('websites')
+              .upload(`${project.id}/index.html`, arrayBuffer, {
+                upsert: true,
+                contentType: 'text/html; charset=utf-8',
+                cacheControl: '3600'
+              });
 
           if (uploadError) {
             console.error('Storage upload error:', uploadError);
