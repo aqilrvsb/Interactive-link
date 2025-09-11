@@ -141,20 +141,38 @@ const WebsiteBuilder = () => {
   };
 
   const openInWebsiteMode = () => {
-    if (!currentProject || !currentProject.id || currentProject.id === 'test-project') {
+    if (!currentProject || !currentProject.id) {
       toast.error('Please save your project first to use Website Mode');
       return;
     }
 
-    // Open the stored HTML file
-    const websiteUrl = `https://mvmwcgnlebbesarvsvxk.supabase.co/storage/v1/object/public/websites/${currentProject.id}/index.html`;
-    
-    const websiteWindow = window.open(websiteUrl, '_blank', 'toolbar=yes,scrollbars=yes,resizable=yes,width=1200,height=800');
-    
-    if (websiteWindow) {
-      toast.success('Website opened from saved file!');
+    if (currentProject.id === 'test-project') {
+      // Test mode - use blob URL
+      const processedCode = processCode();
+      const blob = new Blob([processedCode], { type: 'text/html' });
+      const url = URL.createObjectURL(blob);
+      
+      const websiteWindow = window.open(url, '_blank', 'toolbar=yes,scrollbars=yes,resizable=yes,width=1200,height=800');
+      
+      if (websiteWindow) {
+        toast.success('Website opened in test mode! Login and save for permanent URLs.');
+      } else {
+        toast.error('Please allow pop-ups to use Website Mode');
+      }
+      
+      // Clean up the URL object after a delay
+      setTimeout(() => URL.revokeObjectURL(url), 30000); // 30 seconds cleanup
     } else {
-      toast.error('Please allow pop-ups to use Website Mode');
+      // Logged in user - use stored file
+      const websiteUrl = `https://mvmwcgnlebbesarvsvxk.supabase.co/storage/v1/object/public/websites/${currentProject.id}/index.html`;
+      
+      const websiteWindow = window.open(websiteUrl, '_blank', 'toolbar=yes,scrollbars=yes,resizable=yes,width=1200,height=800');
+      
+      if (websiteWindow) {
+        toast.success('Website opened from saved file!');
+      } else {
+        toast.error('Please allow pop-ups to use Website Mode');
+      }
     }
   };
 
