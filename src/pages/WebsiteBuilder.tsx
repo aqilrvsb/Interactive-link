@@ -139,6 +139,33 @@ const WebsiteBuilder = () => {
     setTimeout(() => URL.revokeObjectURL(url), 1000);
   };
 
+  const openInWebsiteMode = () => {
+    const processedCode = processCode();
+    const blob = new Blob([processedCode], { type: 'text/html' });
+    const url = URL.createObjectURL(blob);
+    
+    // Open in a new window with website-like features
+    const websiteWindow = window.open(url, '_blank', 'toolbar=yes,scrollbars=yes,resizable=yes,width=1200,height=800');
+    
+    if (websiteWindow) {
+      // Set a proper title for the website mode
+      websiteWindow.addEventListener('load', () => {
+        try {
+          websiteWindow.document.title = currentProject?.title || 'Website Preview';
+        } catch (e) {
+          // Cross-origin restrictions might prevent this
+        }
+      });
+      
+      toast.success('Website opened in new window!');
+    } else {
+      toast.error('Please allow pop-ups to use Website Mode');
+    }
+    
+    // Clean up the URL object after a delay
+    setTimeout(() => URL.revokeObjectURL(url), 5000);
+  };
+
   // Update preview when code changes
   useEffect(() => {
     const timeoutId = setTimeout(updatePreview, 300);
@@ -261,6 +288,14 @@ const WebsiteBuilder = () => {
           </h1>
         </div>
         <div className="flex items-center gap-2">
+          <Button 
+            variant="outline" 
+            onClick={openInWebsiteMode} 
+            className="flex items-center gap-2"
+          >
+            <Globe className="h-4 w-4" />
+            Website Mode
+          </Button>
           <Button onClick={handleSave} disabled={isSaving} className="flex items-center gap-2">
             <Save className="h-4 w-4" />
             {isSaving ? 'Saving...' : user ? 'Save & Version' : 'Save (Test Mode)'}
@@ -311,6 +346,16 @@ const WebsiteBuilder = () => {
                         Live Preview
                       </CardTitle>
                       <div className="flex items-center gap-1">
+                        <Button
+                          variant="ghost"
+                          size="sm"
+                          onClick={openInWebsiteMode}
+                          className="h-7 px-2 text-xs"
+                          title="Open as Website"
+                        >
+                          <Globe className="h-3 w-3 mr-1" />
+                          Website
+                        </Button>
                         <Button
                           variant="ghost"
                           size="sm"
