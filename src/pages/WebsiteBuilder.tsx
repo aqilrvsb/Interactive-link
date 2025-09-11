@@ -140,14 +140,14 @@ const WebsiteBuilder = () => {
     setTimeout(() => URL.revokeObjectURL(url), 1000);
   };
 
-  const openInWebsiteMode = async () => {
+  const openInWebsiteMode = () => {
     if (!currentProject || !currentProject.id) {
       toast.error('Please save your project first to use Website Mode');
       return;
     }
 
     if (currentProject.id === 'test-project') {
-      // Test mode - use blob URL
+      // Test mode - use blob URL for testing
       const processedCode = processCode();
       const blob = new Blob([processedCode], { type: 'text/html' });
       const url = URL.createObjectURL(blob);
@@ -161,35 +161,17 @@ const WebsiteBuilder = () => {
       }
       
       // Clean up the URL object after a delay
-      setTimeout(() => URL.revokeObjectURL(url), 30000); // 30 seconds cleanup
+      setTimeout(() => URL.revokeObjectURL(url), 30000);
     } else {
-      // Logged in user - fetch HTML content and create blob URL for proper rendering
-      try {
-        const { data, error } = await supabase.storage
-          .from('websites')
-          .download(`${currentProject.id}/index.html`);
-        
-        if (error) {
-          throw error;
-        }
-        
-        const htmlContent = await data.text();
-        const blob = new Blob([htmlContent], { type: 'text/html' });
-        const url = URL.createObjectURL(blob);
-        
-        const websiteWindow = window.open(url, '_blank', 'toolbar=yes,scrollbars=yes,resizable=yes,width=1200,height=800');
-        
-        if (websiteWindow) {
-          toast.success('Website opened from saved file!');
-        } else {
-          toast.error('Please allow pop-ups to use Website Mode');
-        }
-        
-        // Clean up the URL object after a delay
-        setTimeout(() => URL.revokeObjectURL(url), 30000); // 30 seconds cleanup
-      } catch (error) {
-        console.error('Error opening website:', error);
-        toast.error('Failed to open website. Make sure your project is saved.');
+      // Logged in user - use direct Supabase storage URL (permanent file)
+      const websiteUrl = `https://mvmwcgnlebbesarvsvxk.supabase.co/storage/v1/object/public/websites/${currentProject.id}/index.html`;
+      
+      const websiteWindow = window.open(websiteUrl, '_blank', 'toolbar=yes,scrollbars=yes,resizable=yes,width=1200,height=800');
+      
+      if (websiteWindow) {
+        toast.success('Website opened from permanent file! URL: ' + websiteUrl);
+      } else {
+        toast.error('Please allow pop-ups to use Website Mode');
       }
     }
   };
