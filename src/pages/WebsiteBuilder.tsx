@@ -10,6 +10,7 @@ import { Separator } from '@/components/ui/separator';
 import { useProjects } from '@/hooks/useProjects';
 import { useSiteVersions, SiteVersion } from '@/hooks/useSiteVersions';
 import { useAuth } from '@/contexts/AuthContext';
+import { supabase } from '@/integrations/supabase/client';
 import { ProjectFilesView } from '@/components/website-builder/ProjectFilesView';
 import { SupabaseSettings } from '@/components/website-builder/SupabaseSettings';
 import { DomainManagement } from '@/components/website-builder/DomainManagement';
@@ -140,30 +141,21 @@ const WebsiteBuilder = () => {
   };
 
   const openInWebsiteMode = () => {
-    const processedCode = processCode();
-    const blob = new Blob([processedCode], { type: 'text/html' });
-    const url = URL.createObjectURL(blob);
+    if (!currentProject || !currentProject.id || currentProject.id === 'test-project') {
+      toast.error('Please save your project first to use Website Mode');
+      return;
+    }
+
+    // Open the stored HTML file
+    const websiteUrl = `https://mvmwcgnlebbesarvsvxk.supabase.co/storage/v1/object/public/websites/${currentProject.id}/index.html`;
     
-    // Open in a new window with website-like features
-    const websiteWindow = window.open(url, '_blank', 'toolbar=yes,scrollbars=yes,resizable=yes,width=1200,height=800');
+    const websiteWindow = window.open(websiteUrl, '_blank', 'toolbar=yes,scrollbars=yes,resizable=yes,width=1200,height=800');
     
     if (websiteWindow) {
-      // Set a proper title for the website mode
-      websiteWindow.addEventListener('load', () => {
-        try {
-          websiteWindow.document.title = currentProject?.title || 'Website Preview';
-        } catch (e) {
-          // Cross-origin restrictions might prevent this
-        }
-      });
-      
-      toast.success('Website opened in new window!');
+      toast.success('Website opened from saved file!');
     } else {
       toast.error('Please allow pop-ups to use Website Mode');
     }
-    
-    // Clean up the URL object after a delay
-    setTimeout(() => URL.revokeObjectURL(url), 5000);
   };
 
   // Update preview when code changes
@@ -213,7 +205,7 @@ const WebsiteBuilder = () => {
         };
         localStorage.setItem('test-project-code', code);
         setCurrentProject(testProject);
-        toast.success('Code saved locally for testing! Login to save permanently.');
+        toast.success('Code saved locally for testing! Login to save permanently and use Website Mode.');
         updatePreview();
         setIsSaving(false);
         return;
@@ -245,8 +237,26 @@ const WebsiteBuilder = () => {
         });
       }
 
-      // Create a new version
+      // Save HTML file to Supabase storage
       if (project) {
+        try {
+          const htmlFile = new File([processedCode], 'index.html', { type: 'text/html' });
+          
+          const { error: uploadError } = await supabase.storage
+            .from('websites')
+            .upload(`${project.id}/index.html`, htmlFile, {
+              upsert: true,
+              contentType: 'text/html'
+            });
+
+          if (uploadError) {
+            console.error('Storage upload error:', uploadError);
+          }
+        } catch (storageError) {
+          console.error('Failed to save HTML file:', storageError);
+        }
+
+        // Create a new version
         await createVersion({
           project_id: project.id,
           html_content: processedCode,
@@ -255,7 +265,7 @@ const WebsiteBuilder = () => {
           assets: []
         });
 
-        toast.success('Project saved and versioned successfully!');
+        toast.success('Project saved successfully! Use Website Mode to view your live site.');
         // Auto-run the saved HTML in preview
         updatePreview();
       }
