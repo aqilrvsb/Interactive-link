@@ -164,31 +164,28 @@ const WebsiteBuilder = () => {
       setTimeout(() => URL.revokeObjectURL(url), 30000);
     } else {
       try {
-        // Fetch HTML content from Supabase storage
-        const { data, error } = await supabase.storage
+        // Open the public URL from Supabase Storage directly
+        const { data: publicData } = supabase.storage
           .from('websites')
-          .download(`${currentProject.id}/index.html`);
-        
-        if (error || !data) {
-          toast.error('Failed to load website content');
+          .getPublicUrl(`${currentProject.id}/index.html`);
+
+        const publicUrl = publicData?.publicUrl;
+        if (!publicUrl) {
+          toast.error('Failed to resolve public website URL');
           return;
         }
-        
-        // Convert blob to text and create new blob with correct MIME type
-        const htmlContent = await data.text();
-        const htmlBlob = new Blob([htmlContent], { type: 'text/html' });
-        const url = URL.createObjectURL(htmlBlob);
-        
-        const websiteWindow = window.open(url, '_blank', 'toolbar=yes,scrollbars=yes,resizable=yes,width=1200,height=800');
-        
+
+        // Persist for Publish address redirect
+        try {
+          localStorage.setItem('publicWebsiteUrl', publicUrl);
+        } catch (_) {}
+
+        const websiteWindow = window.open(publicUrl, '_blank', 'toolbar=yes,scrollbars=yes,resizable=yes,width=1200,height=800');
         if (websiteWindow) {
-          toast.success('Website opened from permanent file!');
+          toast.success('Website opened from Supabase public URL!');
         } else {
           toast.error('Please allow pop-ups to use Website Mode');
         }
-        
-        // Clean up the URL object after a delay
-        setTimeout(() => URL.revokeObjectURL(url), 30000);
       } catch (error) {
         console.error('Error opening website mode:', error);
         toast.error('Failed to open website mode');
@@ -296,6 +293,16 @@ const WebsiteBuilder = () => {
         } catch (storageError) {
           console.error('Failed to save HTML file:', storageError);
         }
+
+        // Save the public URL for publish redirect and quick access
+        try {
+          const { data: publicData } = supabase.storage
+            .from('websites')
+            .getPublicUrl(`${project.id}/index.html`);
+          if (publicData?.publicUrl) {
+            localStorage.setItem('publicWebsiteUrl', publicData.publicUrl);
+          }
+        } catch (_) {}
 
         // Create a new version
         await createVersion({
