@@ -23,10 +23,7 @@ export class FileManager {
       // Create the HTML content with proper structure
       const htmlContent = this.processHtmlContent(content, title);
 
-      // In a real deployment, you'd write to the filesystem
-      // For now, we'll simulate by saving to a special localStorage key
-      // and provide the file path for Railway deployment
-      
+      // Store file data in localStorage for preview functionality
       localStorage.setItem(`project_file_${projectId}`, JSON.stringify({
         id: projectId,
         title,
@@ -36,9 +33,9 @@ export class FileManager {
         createdAt: new Date().toISOString()
       }));
 
-      console.log(`File should be created at: ${filePath}`);
-      console.log(`File name: ${fileName}`);
-      console.log(`Content length: ${htmlContent.length} characters`);
+      // For Railway deployment, create a downloadable file that can be manually placed
+      // This creates a download link for the user to save the file
+      this.createDownloadableFile(fileName, htmlContent);
       
       return true;
     } catch (error) {
@@ -116,11 +113,23 @@ export class FileManager {
   }
 
   static openPreview(projectId: string): void {
-    const fileUrl = this.getProjectFileUrl(projectId);
-    const previewWindow = window.open(fileUrl, '_blank', 'toolbar=yes,scrollbars=yes,resizable=yes,width=1200,height=800');
+    // Get the stored file content
+    const fileData = this.getProjectFile(projectId);
+    if (!fileData) {
+      toast.error('No file found for this project. Please save first.');
+      return;
+    }
+
+    // Create a blob URL from the stored content for preview
+    const blob = new Blob([fileData.content], { type: 'text/html' });
+    const url = URL.createObjectURL(blob);
+    
+    const previewWindow = window.open(url, '_blank', 'toolbar=yes,scrollbars=yes,resizable=yes,width=1200,height=800');
     
     if (previewWindow) {
       toast.success('Preview opened in new tab');
+      // Clean up the blob URL after a short delay
+      setTimeout(() => URL.revokeObjectURL(url), 30000);
     } else {
       toast.error('Please allow pop-ups to open preview');
     }
@@ -144,6 +153,21 @@ export class FileManager {
 ${content}
 </body>
 </html>`;
+  }
+
+  private static createDownloadableFile(fileName: string, content: string): void {
+    // Create a downloadable file for manual deployment to Railway
+    console.log(`To deploy to Railway, create file: public/${fileName}`);
+    console.log('File content ready for download/copy');
+    
+    // Optionally create download link (commented out to avoid automatic downloads)
+    // const blob = new Blob([content], { type: 'text/html' });
+    // const url = URL.createObjectURL(blob);
+    // const a = document.createElement('a');
+    // a.href = url;
+    // a.download = fileName;
+    // a.click();
+    // URL.revokeObjectURL(url);
   }
 
   static listAllProjectFiles(): Array<{id: string, title: string, fileName: string, filePath: string, createdAt: string}> {

@@ -148,24 +148,18 @@ const WebsiteBuilder = () => {
     }
 
     if (currentProject.id === 'test-project') {
-      // Test mode - use blob URL for testing
-      const processedCode = processCode();
-      const blob = new Blob([processedCode], { type: 'text/html' });
-      const url = URL.createObjectURL(blob);
-      
-      const websiteWindow = window.open(url, '_blank', 'toolbar=yes,scrollbars=yes,resizable=yes,width=1200,height=800');
+      // Test mode - use direct file URL that FileManager creates
+      const fileUrl = FileManager.getProjectFileUrl(currentProject.id);
+      const websiteWindow = window.open(fileUrl, '_blank', 'toolbar=yes,scrollbars=yes,resizable=yes,width=1200,height=800');
       
       if (websiteWindow) {
-        toast.success('Website opened in test mode! Login and save for permanent URLs.');
+        toast.success('Website opened! Login and save for permanent URLs.');
       } else {
         toast.error('Please allow pop-ups to use Website Mode');
       }
-      
-      // Clean up the URL object after a delay
-      setTimeout(() => URL.revokeObjectURL(url), 30000);
     } else {
       try {
-        // Open the public URL from Supabase Storage directly
+        // For real projects, use the Supabase public URL
         const { data: publicData } = supabase.storage
           .from('websites')
           .getPublicUrl(`${currentProject.id}/index.html`);
@@ -176,14 +170,9 @@ const WebsiteBuilder = () => {
           return;
         }
 
-        // Persist for Publish address redirect
-        try {
-          localStorage.setItem('publicWebsiteUrl', publicUrl);
-        } catch (_) {}
-
         const websiteWindow = window.open(publicUrl, '_blank', 'toolbar=yes,scrollbars=yes,resizable=yes,width=1200,height=800');
         if (websiteWindow) {
-          toast.success('Website opened from Supabase public URL!');
+          toast.success('Website opened from Supabase Storage!');
         } else {
           toast.error('Please allow pop-ups to use Website Mode');
         }
