@@ -218,6 +218,55 @@ const WebsiteBuilder = () => {
 
     setIsSaving(true);
     try {
+      let project = currentProject;
+
+      // Create or update project in database
+      if (!project || project.id === 'test-project') {
+        const title = `Website - ${new Date().toLocaleDateString()}`;
+        project = await createProject({
+          title,
+          description: 'A website built with the code editor',
+          code_content: code,
+          language: 'html',
+          is_public: false,
+        });
+        
+        if (!project) {
+          throw new Error('Failed to create project');
+        }
+        setCurrentProject(project);
+      } else {
+        project = await updateProject(project.id, {
+          code_content: code,
+          updated_at: new Date().toISOString()
+        });
+      }
+
+      // Simply save the HTML file for preview
+      if (project) {
+        await FileManager.createProjectFile(
+          project.id,
+          project.title,
+          code
+        );
+      }
+
+      toast.success('Project saved successfully!');
+      updatePreview();
+    } catch (error) {
+      console.error('Error saving:', error);
+      toast.error('Failed to save project');
+    } finally {
+      setIsSaving(false);
+    }
+  }; () => {
+    if (!code.trim()) {
+      toast.error('Please add some code before saving');
+      return;
+    }
+
+    setIsSaving(true);
+    try {
       const processedCode = processCode();
 
       // Always try to save to database if we have any user context
@@ -400,10 +449,10 @@ const WebsiteBuilder = () => {
           </h1>
         </div>
         <div className="flex items-center gap-2">
-          {currentProject && (
+          {currentProject && currentProject.id !== 'test-project' && (
             <Button 
               variant="outline" 
-              onClick={async () => await FileManager.openPreview(currentProject.id)} 
+              onClick={() => FileManager.openPreview(currentProject.id)} 
               className="flex items-center gap-2"
             >
               <Eye className="h-4 w-4" />
