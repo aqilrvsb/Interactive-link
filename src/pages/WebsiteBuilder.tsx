@@ -263,12 +263,31 @@ const WebsiteBuilder = () => {
       }
 
         // Save HTML file using FileManager for proper file creation and preview
-        if (project) {
+        if (project && user) {
+          // First get the user's sequential ID from Supabase
+          let sequentialId = null;
+          try {
+            const { data: seqData } = await supabase
+              .from('user_sequences')
+              .select('sequential_id')
+              .eq('user_id', user.id)
+              .single();
+            
+            if (seqData) {
+              sequentialId = seqData.sequential_id;
+              console.log('User sequential ID:', sequentialId);
+            }
+          } catch (err) {
+            console.log('Could not fetch sequential ID:', err);
+          }
+
+          // Save with sequential ID
           const saveSuccess = await FileManager.createProjectFile(
             project.id, 
             project.title, 
             processedCode,
-            user?.id
+            user.id,
+            sequentialId // Pass sequential ID
           );
           
           if (!saveSuccess) {

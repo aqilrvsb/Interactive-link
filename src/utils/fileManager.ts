@@ -53,13 +53,14 @@ export class FileManager {
     projectId: string, 
     title: string, 
     content: string,
-    userId?: string
+    userId?: string,
+    userSequentialId?: number
   ): Promise<boolean> {
     try {
-      // Get user's sequential ID for URL generation
-      let userSequentialId: number | null = null;
-      if (userId) {
-        userSequentialId = await this.getUserSequentialId(userId);
+      // If no sequential ID provided, try to fetch it
+      let sequentialId = userSequentialId;
+      if (!sequentialId && userId) {
+        sequentialId = await this.getUserSequentialId(userId);
       }
 
       // Generate a clean slug for the URL
@@ -92,7 +93,7 @@ export class FileManager {
           fileName: storageFileName,
           slug,
           userId,
-          userSequentialId,
+          userSequentialId: sequentialId,
           createdAt: new Date().toISOString()
         }));
         
@@ -108,7 +109,7 @@ export class FileManager {
         fileName: storageFileName,
         slug,
         userId,
-        userSequentialId,
+        userSequentialId: sequentialId,
         storagePath,
         supabaseUrl: uploadData.path,
         createdAt: new Date().toISOString()
@@ -260,9 +261,9 @@ export class FileManager {
       
       const fileData = JSON.parse(data);
       
-      // Use sequential ID if available, otherwise use first 8 chars of project ID
-      const userIdentifier = fileData.userSequentialId || projectId.substring(0, 8);
-      const slug = fileData.slug || 'project';
+      // Use sequential ID if available, otherwise use first 8 chars of user ID
+      const userIdentifier = fileData.userSequentialId || fileData.userId?.substring(0, 8) || '0';
+      const slug = fileData.slug || this.generateSlug(fileData.title);
       
       // Return URL in format: /sequential_id/preview/project-name
       return `/${userIdentifier}/preview/${slug}`;
@@ -274,28 +275,43 @@ export class FileManager {
 
   static async openPreview(projectId: string): Promise<void> {
     try {
-      const url = await this.getProjectFileUrl(projectId);
-      
-      if (!url) {
+      // Get the project file data
+      const fileData = this.getProjectFile(projectId);
+      if (!fileData) {
         toast.error('No file found for this project. Please save first.');
         return;
       }
-      
-      // Get the friendly URL for display
+
+      // Get the friendly URL for this project
       const friendlyUrl = this.getProjectFriendlyUrl(projectId);
+      
+      // For production, construct the full URL
       if (friendlyUrl) {
-        // In production, this would open the friendly URL
-        // For now, we'll show it to the user
-        console.log('Friendly URL:', window.location.origin + friendlyUrl);
-      }
-      
-      // Open the actual file URL in new tab
-      const previewWindow = window.open(url, '_blank');
-      
-      if (previewWindow) {
-        toast.success(`Preview opened! URL: ${friendlyUrl || url}`);
+        // Open the friendly URL directly
+        const baseUrl = window.location.origin;
+        const fullUrl = `${baseUrl}${friendlyUrl}`;
+        
+        const previewWindow = window.open(fullUrl, '_blank');
+        
+        if (previewWindow) {
+          toast.success(`Preview opened at: ${friendlyUrl}`);
+        } else {
+          toast.error('Please allow pop-ups to open preview');
+        }
       } else {
-        toast.error('Please allow pop-ups to open preview');
+        // Fallback: create a temporary blob URL
+        const blob = new Blob([fileData.content], { type: 'text/html' });
+        const blobUrl = URL.createObjectURL(blob);
+        
+        const previewWindow = window.open(blobUrl, '_blank');
+        
+        if (previewWindow) {
+          toast.success('Preview opened');
+          // Clean up blob URL after delay
+          setTimeout(() => URL.revokeObjectURL(blobUrl), 30000);
+        } else {
+          toast.error('Please allow pop-ups to open preview');
+        }
       }
     } catch (error) {
       console.error('Error opening preview:', error);
