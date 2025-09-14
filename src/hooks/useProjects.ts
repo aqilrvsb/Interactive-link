@@ -145,8 +145,15 @@ export const useProjects = () => {
   };
 
   useEffect(() => {
-    fetchProjects();
-  }, [user]);
+    // Only fetch projects when user is loaded and not loading
+    if (user?.id) {
+      fetchProjects();
+    } else {
+      // Clear projects if no user
+      setProjects([]);
+      setLoading(false);
+    }
+  }, [user?.id]); // Only trigger when user ID changes
 
   return {
     projects,
