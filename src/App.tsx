@@ -11,6 +11,7 @@ import Dashboard from "./pages/Dashboard";
 import Editor from "./pages/Editor";
 import WebsiteBuilder from "./pages/WebsiteBuilder";
 import ChatEditor from "./pages/ChatEditor";
+import PreviewPage from "./pages/PreviewPage";
 import NotFound from "./pages/NotFound";
 
 const queryClient = new QueryClient();
@@ -33,6 +34,7 @@ const App = () => (
             <Route path="/website-builder/:projectId" element={<WebsiteBuilder />} />
             <Route path="/chat-editor" element={<ChatEditor />} />
             <Route path="/chat-editor/:projectId" element={<ChatEditor />} />
+            <Route path="/preview/:slug" element={<PreviewPage />} />
             {/* ADD ALL CUSTOM ROUTES ABOVE THE CATCH-ALL "*" ROUTE */}
             <Route path="*" element={<NotFound />} />
           </Routes>
