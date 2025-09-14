@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/contexts/AuthContext';
 import { toast } from 'react-hot-toast';
@@ -22,54 +22,89 @@ export const useProjects = () => {
   const [projects, setProjects] = useState<Project[]>([]);
   const [loading, setLoading] = useState(true);
   const { user } = useAuth();
+  const fetchTimeoutRef = useRef<NodeJS.Timeout>();
+  const lastFetchRef = useRef<string>('');
 
   const fetchProjects = async () => {
-    console.log('fetchProjects called, user:', user);
-    
-    // Get user ID from context or Supabase auth
-    let userId = user?.id;
-    
-    if (!userId) {
-      // Try to get from Supabase auth directly
-      const { data: { user: authUser } } = await supabase.auth.getUser();
-      userId = authUser?.id;
-    }
-    
-    if (!userId) {
-      console.log('No user ID found, clearing projects');
-      setProjects([]);
-      setLoading(false);
-      return;
-    }
-    
     try {
-      console.log('Attempting to fetch projects for user:', userId);
+      // Get user ID from multiple sources
+      let userId = user?.id;
+      
+      if (!userId) {
+        // Try to get from Supabase auth directly
+        const { data: { user: authUser } } = await supabase.auth.getUser();
+        userId = authUser?.id;
+      }
+      
+      if (!userId) {
+        // Try from localStorage as last resort
+        const storedUser = localStorage.getItem('auth_user');
+        if (storedUser) {
+          try {
+            const parsed = JSON.parse(storedUser);
+            userId = parsed.id;
+          } catch (e) {
+            console.error('Failed to parse stored user');
+          }
+        }
+      }
+      
+      if (!userId) {
+        console.log('No user ID found after all attempts');
+        setProjects([]);
+        setLoading(false);
+        return;
+      }
+
+      // Prevent duplicate fetches
+      if (lastFetchRef.current === userId) {
+        console.log('Already fetched for this user, skipping');
+        setLoading(false);
+        return;
+      }
+      
+      lastFetchRef.current = userId;
+      console.log('Fetching projects for user:', userId);
+      
       const { data, error } = await supabase
         .from('projects')
         .select('*')
         .eq('user_id', userId)
         .order('updated_at', { ascending: false });
 
-      console.log('Supabase response:', { data, error });
-      if (error) throw error;
-      setProjects(data || []);
-      console.log('Projects set successfully:', data);
+      if (error) {
+        console.error('Supabase error:', error);
+        // Don't throw, just log and set empty
+        setProjects([]);
+      } else {
+        setProjects(data || []);
+        console.log('Projects loaded:', data?.length || 0);
+      }
     } catch (error: any) {
       console.error('Error fetching projects:', error);
-      toast.error('Failed to fetch projects');
+      setProjects([]);
     } finally {
       setLoading(false);
-      console.log('Loading set to false');
     }
   };
 
   const createProject = async (projectData: Omit<Project, 'id' | 'user_id' | 'created_at' | 'updated_at'>) => {
-    if (!user) return null;
+    let userId = user?.id;
+    
+    if (!userId) {
+      const { data: { user: authUser } } = await supabase.auth.getUser();
+      userId = authUser?.id;
+    }
+    
+    if (!userId) {
+      toast.error('Please log in to create projects');
+      return null;
+    }
 
     try {
       const { data, error } = await supabase
         .from('projects')
-        .insert([{ ...projectData, user_id: user.id }])
+        .insert([{ ...projectData, user_id: userId }])
         .select()
         .single();
 
@@ -80,7 +115,8 @@ export const useProjects = () => {
         const fileCreated = await FileManager.createProjectFile(
           data.id,
           projectData.title,
-          projectData.code_content
+          projectData.code_content,
+          userId
         );
         
         if (fileCreated) {
@@ -89,16 +125,16 @@ export const useProjects = () => {
       }
       
       setProjects(prev => [data, ...prev]);
-      toast.success('Project and HTML file created successfully');
+      toast.success('Project created successfully');
       return data;
     } catch (error: any) {
-      toast.error('Failed to create project');
+      toast.error(`Failed to create project: ${error.message}`);
       console.error('Error creating project:', error);
       return null;
     }
   };
 
-  const updateProject = async (id: string, updates: Partial<Project>) => {
+  const updateProject = async (id: string, updates: Partial<Omit<Project, 'id' | 'user_id' | 'created_at'>>) => {
     try {
       const { data, error } = await supabase
         .from('projects')
@@ -110,23 +146,32 @@ export const useProjects = () => {
       if (error) throw error;
       
       // Update HTML file if code content changed
-      if (updates.code_content) {
-        const fileUpdated = await FileManager.updateProjectFile(
-          id,
-          updates.title || data.title,
-          updates.code_content
-        );
+      if (updates.code_content && data) {
+        let userId = user?.id;
+        if (!userId) {
+          const { data: { user: authUser } } = await supabase.auth.getUser();
+          userId = authUser?.id;
+        }
         
-        if (fileUpdated) {
-          console.log(`HTML file updated for project: ${id}`);
+        if (userId) {
+          const fileUpdated = await FileManager.updateProjectFile(
+            id,
+            data.title,
+            updates.code_content,
+            userId
+          );
+          
+          if (fileUpdated) {
+            console.log(`HTML file updated for project: ${id}`);
+          }
         }
       }
       
       setProjects(prev => prev.map(p => p.id === id ? data : p));
-      toast.success('Project and HTML file updated successfully');
+      toast.success('Project updated successfully');
       return data;
     } catch (error: any) {
-      toast.error('Failed to update project');
+      toast.error(`Failed to update project: ${error.message}`);
       console.error('Error updating project:', error);
       return null;
     }
@@ -142,13 +187,21 @@ export const useProjects = () => {
       if (error) throw error;
       
       // Delete HTML file from project directory
-      const fileDeleted = await FileManager.deleteProjectFile(id);
-      if (fileDeleted) {
-        console.log(`HTML file deleted for project: ${id}`);
+      let userId = user?.id;
+      if (!userId) {
+        const { data: { user: authUser } } = await supabase.auth.getUser();
+        userId = authUser?.id;
+      }
+      
+      if (userId) {
+        const fileDeleted = await FileManager.deleteProjectFile(id, userId);
+        if (fileDeleted) {
+          console.log(`HTML file deleted for project: ${id}`);
+        }
       }
       
       setProjects(prev => prev.filter(p => p.id !== id));
-      toast.success('Project and HTML file deleted successfully');
+      toast.success('Project deleted successfully');
     } catch (error: any) {
       toast.error('Failed to delete project');
       console.error('Error deleting project:', error);
@@ -156,21 +209,33 @@ export const useProjects = () => {
   };
 
   useEffect(() => {
-    // Always try to fetch projects, don't rely only on user context
-    const loadProjects = async () => {
-      // Check if we have any form of authentication
-      const { data: { user: authUser } } = await supabase.auth.getUser();
-      
-      if (authUser?.id || user?.id) {
-        await fetchProjects();
-      } else {
-        setProjects([]);
-        setLoading(false);
+    // Clear any existing timeout
+    if (fetchTimeoutRef.current) {
+      clearTimeout(fetchTimeoutRef.current);
+    }
+
+    // Debounce the fetch to avoid rapid consecutive calls
+    fetchTimeoutRef.current = setTimeout(() => {
+      fetchProjects();
+    }, 100);
+
+    // Cleanup
+    return () => {
+      if (fetchTimeoutRef.current) {
+        clearTimeout(fetchTimeoutRef.current);
       }
     };
-    
-    loadProjects();
-  }, [user?.id]); // Trigger when user ID changes
+  }, [user?.id]);
+
+  // Also fetch on mount regardless of user state
+  useEffect(() => {
+    // Give auth time to initialize, then fetch
+    const timer = setTimeout(() => {
+      fetchProjects();
+    }, 500);
+
+    return () => clearTimeout(timer);
+  }, []);
 
   return {
     projects,
@@ -178,6 +243,6 @@ export const useProjects = () => {
     createProject,
     updateProject,
     deleteProject,
-    refetch: fetchProjects,
+    refetch: fetchProjects
   };
 };

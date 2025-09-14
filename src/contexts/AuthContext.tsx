@@ -81,12 +81,25 @@ export const AuthProvider = ({ children }: AuthProviderProps) => {
 
   useEffect(() => {
     let mounted = true;
+    let retryCount = 0;
+    const maxRetries = 3;
 
     // Check for existing session on mount
     const initializeAuth = async () => {
       try {
+        // Add delay to prevent rate limiting
+        if (retryCount > 0) {
+          await new Promise(resolve => setTimeout(resolve, 1000 * retryCount));
+        }
+
         // First check Supabase auth session
-        const { data: { session: currentSession } } = await supabase.auth.getSession();
+        const { data: { session: currentSession }, error } = await supabase.auth.getSession();
+        
+        if (error && retryCount < maxRetries) {
+          retryCount++;
+          console.log(`Auth initialization retry ${retryCount}/${maxRetries}`);
+          return initializeAuth();
+        }
         
         if (currentSession && mounted) {
           setSession(currentSession);
@@ -118,6 +131,12 @@ export const AuthProvider = ({ children }: AuthProviderProps) => {
         }
       } catch (error) {
         console.error('Error initializing auth:', error);
+        if (retryCount < maxRetries) {
+          retryCount++;
+          setTimeout(() => {
+            if (mounted) initializeAuth();
+          }, 1000 * retryCount);
+        }
       } finally {
         if (mounted) {
           setLoading(false);
@@ -125,7 +144,10 @@ export const AuthProvider = ({ children }: AuthProviderProps) => {
       }
     };
 
-    initializeAuth();
+    // Delay initial auth check to avoid race conditions
+    const timer = setTimeout(() => {
+      if (mounted) initializeAuth();
+    }, 100);
 
     // Set up auth state listener
     const { data: { subscription } } = supabase.auth.onAuthStateChange(
@@ -133,11 +155,17 @@ export const AuthProvider = ({ children }: AuthProviderProps) => {
         if (!mounted) return;
         
         console.log('Auth state changed:', event, session?.user?.id);
+        
+        // Ignore initial session event if we already have a session
+        if (event === 'INITIAL_SESSION' && !session) {
+          return;
+        }
+        
         setSession(session);
         
         if (session?.user) {
           await fetchUserProfile(session.user.id);
-        } else {
+        } else if (event === 'SIGNED_OUT') {
           setUser(null);
           localStorage.removeItem('auth_user');
         }
@@ -148,6 +176,7 @@ export const AuthProvider = ({ children }: AuthProviderProps) => {
 
     return () => {
       mounted = false;
+      clearTimeout(timer);
       subscription.unsubscribe();
     };
   }, []);
