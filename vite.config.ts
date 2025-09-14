@@ -12,6 +12,7 @@ export default defineConfig(({ mode }) => ({
   preview: {
     host: "::",
     port: process.env.PORT ? parseInt(process.env.PORT) : 4173,
+    allowedHosts: [".railway.app", "localhost", ".up.railway.app"],
   },
   plugins: [react(), mode === "development" && componentTagger()].filter(Boolean),
   resolve: {
