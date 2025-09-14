@@ -25,18 +25,29 @@ export const useProjects = () => {
 
   const fetchProjects = async () => {
     console.log('fetchProjects called, user:', user);
-    if (!user) {
-      console.log('No user found, setting loading to false');
+    
+    // Get user ID from context or Supabase auth
+    let userId = user?.id;
+    
+    if (!userId) {
+      // Try to get from Supabase auth directly
+      const { data: { user: authUser } } = await supabase.auth.getUser();
+      userId = authUser?.id;
+    }
+    
+    if (!userId) {
+      console.log('No user ID found, clearing projects');
+      setProjects([]);
       setLoading(false);
       return;
     }
     
     try {
-      console.log('Attempting to fetch projects for user:', user.id);
+      console.log('Attempting to fetch projects for user:', userId);
       const { data, error } = await supabase
         .from('projects')
         .select('*')
-        .eq('user_id', user.id)
+        .eq('user_id', userId)
         .order('updated_at', { ascending: false });
 
       console.log('Supabase response:', { data, error });
@@ -145,15 +156,21 @@ export const useProjects = () => {
   };
 
   useEffect(() => {
-    // Only fetch projects when user is loaded and not loading
-    if (user?.id) {
-      fetchProjects();
-    } else {
-      // Clear projects if no user
-      setProjects([]);
-      setLoading(false);
-    }
-  }, [user?.id]); // Only trigger when user ID changes
+    // Always try to fetch projects, don't rely only on user context
+    const loadProjects = async () => {
+      // Check if we have any form of authentication
+      const { data: { user: authUser } } = await supabase.auth.getUser();
+      
+      if (authUser?.id || user?.id) {
+        await fetchProjects();
+      } else {
+        setProjects([]);
+        setLoading(false);
+      }
+    };
+    
+    loadProjects();
+  }, [user?.id]); // Trigger when user ID changes
 
   return {
     projects,

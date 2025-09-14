@@ -220,27 +220,33 @@ const WebsiteBuilder = () => {
     try {
       const processedCode = processCode();
 
-      if (!user) {
-        // Test mode - just save to localStorage and show success
-        const testProject = {
-          id: 'test-project',
-          title: `Test Project - ${new Date().toLocaleDateString()}`,
-          code_content: code,
-          created_at: new Date().toISOString()
-        };
-        localStorage.setItem('test-project-code', code);
-        setCurrentProject(testProject);
-        toast.success('Code saved locally for testing! Login to save permanently and use Website Mode.');
-        updatePreview();
-        setIsSaving(false);
-        return;
-      }
-
+      // Always try to save to database if we have any user context
       let project = currentProject;
 
       if (!project || project.id === 'test-project') {
-        // Create new project
-        const title = `Website - ${new Date().toLocaleDateString()}`;
+        // Create new project - use the current title or generate one
+        const title = currentProject?.title || `Website - ${new Date().toLocaleDateString()}`;
+        
+        // Make sure we have a user ID to save with
+        const userId = user?.id || (await supabase.auth.getUser()).data.user?.id;
+        
+        if (!userId) {
+          // Fallback to test mode if no user
+          const testProject = {
+            id: 'test-project-' + Date.now(),
+            title,
+            code_content: code,
+            created_at: new Date().toISOString()
+          };
+          localStorage.setItem('test-project-code', code);
+          setCurrentProject(testProject);
+          toast.success('Code saved locally for testing! Please login to save permanently.');
+          updatePreview();
+          setIsSaving(false);
+          return;
+        }
+
+        // Create project in database
         project = await createProject({
           title,
           description: 'A website built with the code editor',
@@ -263,35 +269,42 @@ const WebsiteBuilder = () => {
       }
 
         // Save HTML file using FileManager for proper file creation and preview
-        if (project && user) {
-          // First get the user's sequential ID from Supabase
-          let sequentialId = null;
-          try {
-            const { data: seqData } = await supabase
-              .from('user_sequences')
-              .select('sequential_id')
-              .eq('user_id', user.id)
-              .single();
-            
-            if (seqData) {
-              sequentialId = seqData.sequential_id;
-              console.log('User sequential ID:', sequentialId);
-            }
-          } catch (err) {
-            console.log('Could not fetch sequential ID:', err);
-          }
-
-          // Save with sequential ID
-          const saveSuccess = await FileManager.createProjectFile(
-            project.id, 
-            project.title, 
-            processedCode,
-            user.id,
-            sequentialId // Pass sequential ID
-          );
+        if (project) {
+          // Get user ID from multiple sources
+          const userId = user?.id || (await supabase.auth.getUser()).data.user?.id;
           
-          if (!saveSuccess) {
-            console.error('Failed to create project file');
+          if (userId) {
+            // First get the user's sequential ID from Supabase
+            let sequentialId = null;
+            try {
+              const { data: seqData } = await supabase
+                .from('user_sequences')
+                .select('sequential_id')
+                .eq('user_id', userId)
+                .single();
+              
+              if (seqData) {
+                sequentialId = seqData.sequential_id;
+                console.log('User sequential ID:', sequentialId);
+              }
+            } catch (err) {
+              console.log('Could not fetch sequential ID:', err);
+            }
+
+            // Save with sequential ID
+            const saveSuccess = await FileManager.createProjectFile(
+              project.id, 
+              project.title, 
+              processedCode,
+              userId,
+              sequentialId // Pass sequential ID
+            );
+            
+            if (saveSuccess) {
+              console.log('Project file created successfully');
+            } else {
+              console.error('Failed to create project file');
+            }
           }
         }
 
@@ -381,7 +394,7 @@ const WebsiteBuilder = () => {
           )}
           <Button onClick={handleSave} disabled={isSaving} className="flex items-center gap-2">
             <Save className="h-4 w-4" />
-            {isSaving ? 'Saving...' : user ? 'Save & Version' : 'Save (Test Mode)'}
+            {isSaving ? 'Saving...' : 'Save & Version'}
           </Button>
         </div>
       </header>
