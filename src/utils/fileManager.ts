@@ -5,36 +5,79 @@ export interface ProjectFile {
   id: string;
   title: string;
   content: string;
+  slug?: string;
 }
 
 export class FileManager {
-  private static getFileName(projectId: string): string {
+  // Generate unique filename using user_id and project_id to avoid conflicts
+  private static getFileName(projectId: string, userId?: string, slug?: string): string {
+    // If slug is provided, use it for user-friendly URLs
+    if (slug) {
+      // Sanitize slug to be URL-safe
+      const safeSlug = slug.toLowerCase()
+        .replace(/[^a-z0-9-]/g, '-')
+        .replace(/-+/g, '-')
+        .replace(/^-|-$/g, '');
+      return `${safeSlug}.html`;
+    }
+    
+    // Fallback to unique ID-based naming for guaranteed uniqueness
+    if (userId) {
+      return `${userId}_${projectId}.html`;
+    }
     return `${projectId}.html`;
   }
 
-  static async createProjectFile(projectId: string, title: string, content: string): Promise<boolean> {
+  // Generate a slug from project title
+  static generateSlug(title: string, projectId: string): string {
+    const baseSlug = title.toLowerCase()
+      .replace(/[^a-z0-9\s-]/g, '')
+      .replace(/\s+/g, '-')
+      .replace(/-+/g, '-')
+      .replace(/^-|-$/g, '');
+    
+    // Add first 8 chars of project ID to ensure uniqueness
+    const shortId = projectId.substring(0, 8);
+    return `${baseSlug}-${shortId}`;
+  }
+
+  static async createProjectFile(
+    projectId: string, 
+    title: string, 
+    content: string,
+    userId?: string
+  ): Promise<boolean> {
     try {
-      const fileName = this.getFileName(projectId);
+      // Generate a unique slug for this project
+      const slug = this.generateSlug(title, projectId);
+      const fileName = this.getFileName(projectId, userId, slug);
       
       // Create the HTML content with proper structure
       const htmlContent = this.processHtmlContent(content, title);
 
-      // Store in Supabase storage (create a public bucket for HTML files)
+      // Store in Supabase storage with user-specific path for organization
+      const storagePath = userId 
+        ? `users/${userId}/projects/${fileName}`
+        : `projects/${fileName}`;
+
       const { data: uploadData, error: uploadError } = await supabase.storage
         .from('project-files')
-        .upload(`${projectId}/${fileName}`, new Blob([htmlContent], { type: 'text/html' }), {
+        .upload(storagePath, new Blob([htmlContent], { type: 'text/html' }), {
           contentType: 'text/html',
-          upsert: true, // This will overwrite if exists
+          upsert: true,
           cacheControl: '3600'
         });
 
       if (uploadError) {
-        // Fallback to localStorage if Supabase storage fails
+        console.error('Storage upload error:', uploadError);
+        // Fallback to localStorage
         localStorage.setItem(`project_file_${projectId}`, JSON.stringify({
           id: projectId,
           title,
           content: htmlContent,
           fileName,
+          slug,
+          userId,
           createdAt: new Date().toISOString()
         }));
         
@@ -42,12 +85,15 @@ export class FileManager {
         return true;
       }
 
-      // Also store metadata in localStorage for quick access
+      // Store metadata including slug for URL generation
       localStorage.setItem(`project_file_${projectId}`, JSON.stringify({
         id: projectId,
         title,
         content: htmlContent,
         fileName,
+        slug,
+        userId,
+        storagePath,
         supabaseUrl: uploadData.path,
         createdAt: new Date().toISOString()
       }));
@@ -61,31 +107,82 @@ export class FileManager {
     }
   }
 
-  static async updateProjectFile(projectId: string, title: string, content: string): Promise<boolean> {
+  static async updateProjectFile(
+    projectId: string, 
+    title: string, 
+    content: string,
+    userId?: string
+  ): Promise<boolean> {
     try {
-      // Same as create - it will upsert
-      return this.createProjectFile(projectId, title, content);
+      // Get existing file data to check if we need to rename
+      const existingData = localStorage.getItem(`project_file_${projectId}`);
+      let oldStoragePath: string | null = null;
+      
+      if (existingData) {
+        const parsed = JSON.parse(existingData);
+        oldStoragePath = parsed.storagePath;
+        
+        // If title changed, we need to update the slug and filename
+        if (parsed.title !== title && oldStoragePath) {
+          // Delete old file
+          await supabase.storage
+            .from('project-files')
+            .remove([oldStoragePath]);
+        }
+      }
+      
+      // Create/update with new filename
+      return this.createProjectFile(projectId, title, content, userId);
     } catch (error) {
       console.error('Error updating project file:', error);
       return false;
     }
   }
 
-  static async deleteProjectFile(projectId: string): Promise<boolean> {
+  static async renameProject(
+    projectId: string,
+    oldTitle: string,
+    newTitle: string,
+    content: string,
+    userId?: string
+  ): Promise<boolean> {
     try {
-      const fileName = this.getFileName(projectId);
+      // This will handle renaming by creating new file and deleting old
+      return this.updateProjectFile(projectId, newTitle, content, userId);
+    } catch (error) {
+      console.error('Error renaming project:', error);
+      toast.error('Failed to rename project');
+      return false;
+    }
+  }
+
+  static async deleteProjectFile(projectId: string, userId?: string): Promise<boolean> {
+    try {
+      const existingData = localStorage.getItem(`project_file_${projectId}`);
       
-      // Delete from Supabase storage
-      await supabase.storage
-        .from('project-files')
-        .remove([`${projectId}/${fileName}`]);
+      if (existingData) {
+        const fileData = JSON.parse(existingData);
+        
+        // Delete from Supabase storage
+        if (fileData.storagePath) {
+          const { error } = await supabase.storage
+            .from('project-files')
+            .remove([fileData.storagePath]);
+          
+          if (error) {
+            console.error('Error deleting from storage:', error);
+          }
+        }
+      }
 
       // Remove from localStorage
       localStorage.removeItem(`project_file_${projectId}`);
       
+      toast.success('Project file deleted');
       return true;
     } catch (error) {
       console.error('Error deleting project file:', error);
+      toast.error('Failed to delete project file');
       return false;
     }
   }
@@ -99,7 +196,8 @@ export class FileManager {
       return {
         id: fileData.id,
         title: fileData.title,
-        content: fileData.content
+        content: fileData.content,
+        slug: fileData.slug
       };
     } catch (error) {
       console.error('Error getting project file:', error);
@@ -109,21 +207,25 @@ export class FileManager {
 
   static async getProjectFileUrl(projectId: string): Promise<string | null> {
     try {
-      const fileName = this.getFileName(projectId);
+      const data = localStorage.getItem(`project_file_${projectId}`);
       
-      // Get public URL from Supabase storage
-      const { data } = supabase.storage
-        .from('project-files')
-        .getPublicUrl(`${projectId}/${fileName}`);
+      if (!data) return null;
       
-      if (data && data.publicUrl) {
-        return data.publicUrl;
+      const fileData = JSON.parse(data);
+      
+      // Try to get public URL from Supabase storage
+      if (fileData.storagePath) {
+        const { data: urlData } = supabase.storage
+          .from('project-files')
+          .getPublicUrl(fileData.storagePath);
+        
+        if (urlData && urlData.publicUrl) {
+          return urlData.publicUrl;
+        }
       }
       
       // Fallback to creating a data URL from localStorage
-      const fileData = this.getProjectFile(projectId);
-      if (fileData) {
-        // Create a proper HTML file URL
+      if (fileData.content) {
         const blob = new Blob([fileData.content], { type: 'text/html' });
         return URL.createObjectURL(blob);
       }
@@ -135,9 +237,27 @@ export class FileManager {
     }
   }
 
+  // Get user-friendly URL with slug
+  static getProjectSlugUrl(projectId: string): string | null {
+    try {
+      const data = localStorage.getItem(`project_file_${projectId}`);
+      if (!data) return null;
+      
+      const fileData = JSON.parse(data);
+      if (fileData.slug) {
+        // Return a user-friendly URL path
+        return `/preview/${fileData.slug}`;
+      }
+      
+      return `/preview/${projectId}`;
+    } catch (error) {
+      console.error('Error getting project slug URL:', error);
+      return null;
+    }
+  }
+
   static async openPreview(projectId: string): Promise<void> {
     try {
-      // First try to get the Supabase public URL
       const url = await this.getProjectFileUrl(projectId);
       
       if (!url) {
@@ -194,7 +314,10 @@ ${content}
       return;
     }
     
-    const fileName = this.getFileName(projectId);
+    const data = localStorage.getItem(`project_file_${projectId}`);
+    const parsed = data ? JSON.parse(data) : null;
+    const fileName = parsed?.fileName || `${projectId}.html`;
+    
     const blob = new Blob([fileData.content], { type: 'text/html' });
     const url = URL.createObjectURL(blob);
     
@@ -209,7 +332,13 @@ ${content}
     toast.success(`Downloaded ${fileName}`);
   }
 
-  static listAllProjectFiles(): Array<{id: string, title: string, fileName: string, createdAt: string}> {
+  static listAllProjectFiles(): Array<{
+    id: string, 
+    title: string, 
+    fileName: string, 
+    slug?: string,
+    createdAt: string
+  }> {
     const files = [];
     for (let i = 0; i < localStorage.length; i++) {
       const key = localStorage.key(i);
@@ -220,6 +349,7 @@ ${content}
             id: data.id,
             title: data.title,
             fileName: data.fileName,
+            slug: data.slug,
             createdAt: data.createdAt
           });
         } catch (e) {

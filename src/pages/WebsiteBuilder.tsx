@@ -267,7 +267,8 @@ const WebsiteBuilder = () => {
           const saveSuccess = await FileManager.createProjectFile(
             project.id, 
             project.title, 
-            processedCode
+            processedCode,
+            user?.id
           );
           
           if (!saveSuccess) {
@@ -354,6 +355,16 @@ const WebsiteBuilder = () => {
               variant="outline" 
               onClick={() => FileManager.openPreview(currentProject.id)} 
               className="flex items-center gap-2"
+            >
+              <Eye className="h-4 w-4" />
+              Preview
+            </Button>
+          )}
+          <Button onClick={handleSave} disabled={isSaving} className="flex items-center gap-2">
+            <Save className="h-4 w-4" />
+            {isSaving ? 'Saving...' : user ? 'Save & Version' : 'Save (Test Mode)'}
+          </Button>
+        </div>="flex items-center gap-2"
             >
               <Eye className="h-4 w-4" />
               Preview
