@@ -261,9 +261,17 @@ export class FileManager {
       
       const fileData = JSON.parse(data);
       
-      // Use sequential ID if available, otherwise use first 8 chars of user ID
-      const userIdentifier = fileData.userSequentialId || fileData.userId?.substring(0, 8) || '0';
-      const slug = fileData.slug || this.generateSlug(fileData.title);
+      // Prioritize sequential ID, then user ID substring, then default to 0
+      let userIdentifier = '0';
+      
+      if (fileData.userSequentialId) {
+        userIdentifier = String(fileData.userSequentialId);
+      } else if (fileData.userId) {
+        // Use first 8 chars of user ID as fallback
+        userIdentifier = fileData.userId.substring(0, 8);
+      }
+      
+      const slug = fileData.slug || this.generateSlug(fileData.title || 'project');
       
       // Return URL in format: /sequential_id/preview/project-name
       return `/${userIdentifier}/preview/${slug}`;

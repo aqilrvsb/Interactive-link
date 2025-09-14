@@ -274,21 +274,34 @@ const WebsiteBuilder = () => {
           const userId = user?.id || (await supabase.auth.getUser()).data.user?.id;
           
           if (userId) {
-            // First get the user's sequential ID from Supabase
+            // Get the user's sequential ID from Supabase
             let sequentialId = null;
             try {
-              const { data: seqData } = await supabase
+              const { data: seqData, error: seqError } = await supabase
                 .from('user_sequences')
                 .select('sequential_id')
                 .eq('user_id', userId)
                 .single();
               
-              if (seqData) {
+              if (seqData && !seqError) {
                 sequentialId = seqData.sequential_id;
-                console.log('User sequential ID:', sequentialId);
+                console.log('User sequential ID retrieved:', sequentialId);
+              } else {
+                console.log('Could not fetch sequential ID:', seqError);
+                // Try to get from users_with_sequential_ids view
+                const { data: viewData } = await supabase
+                  .from('users_with_sequential_ids')
+                  .select('sequential_id')
+                  .eq('user_id', userId)
+                  .single();
+                
+                if (viewData) {
+                  sequentialId = viewData.sequential_id;
+                  console.log('Sequential ID from view:', sequentialId);
+                }
               }
             } catch (err) {
-              console.log('Could not fetch sequential ID:', err);
+              console.error('Error fetching sequential ID:', err);
             }
 
             // Save with sequential ID
@@ -301,7 +314,7 @@ const WebsiteBuilder = () => {
             );
             
             if (saveSuccess) {
-              console.log('Project file created successfully');
+              console.log('Project file created successfully with sequential ID:', sequentialId);
             } else {
               console.error('Failed to create project file');
             }
@@ -341,15 +354,20 @@ const WebsiteBuilder = () => {
         } catch (_) {}
 
         // Create a new version
-        await createVersion({
-          project_id: project.id,
-          html_content: processedCode,
-          css_content: null,
-          js_content: null,
-          assets: []
-        });
+        try {
+          await createVersion({
+            project_id: project.id,
+            html_content: processedCode,
+            css_content: null,
+            js_content: null,
+            assets: []
+          });
+        } catch (versionError) {
+          console.error('Version creation error:', versionError);
+          // Don't show error toast since the main save succeeded
+        }
 
-        toast.success('Project saved successfully! Use Website Mode to view your live site.');
+        toast.success('Project saved successfully!');
         // Auto-run the saved HTML in preview
         updatePreview();
       }

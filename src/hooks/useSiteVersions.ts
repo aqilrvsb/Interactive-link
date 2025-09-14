@@ -49,11 +49,22 @@ export const useSiteVersions = (projectId?: string) => {
   const createVersion = async (versionData: {
     project_id: string;
     html_content: string;
-    css_content?: string;
-    js_content?: string;
+    css_content?: string | null;
+    js_content?: string | null;
     assets?: any[];
   }) => {
-    if (!user) return null;
+    // Get user ID from multiple sources
+    let userId = user?.id;
+    
+    if (!userId) {
+      const { data: { user: authUser } } = await supabase.auth.getUser();
+      userId = authUser?.id;
+    }
+    
+    if (!userId) {
+      console.error('No user ID available for creating version');
+      return null;
+    }
 
     try {
       // Get the latest version number
@@ -71,7 +82,7 @@ export const useSiteVersions = (projectId?: string) => {
         .from('site_versions')
         .insert([{
           ...versionData,
-          user_id: user.id,
+          user_id: userId,
           version_number: nextVersionNumber,
           assets: versionData.assets || []
         }])
@@ -81,10 +92,11 @@ export const useSiteVersions = (projectId?: string) => {
       if (error) throw error;
       
       setVersions(prev => [data as SiteVersion, ...prev]);
-      toast.success(`Version ${nextVersionNumber} created successfully`);
+      // Don't show toast for version creation to avoid clutter
+      console.log(`Version ${nextVersionNumber} created successfully`);
       return data;
     } catch (error: any) {
-      toast.error('Failed to create site version');
+      // Don't show error toast since this is optional
       console.error('Error creating site version:', error);
       return null;
     }
