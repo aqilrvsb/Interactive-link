@@ -262,7 +262,20 @@ const WebsiteBuilder = () => {
         });
       }
 
-        // Save HTML file to Supabase storage
+        // Save HTML file using FileManager for proper file creation and preview
+        if (project) {
+          const saveSuccess = await FileManager.createProjectFile(
+            project.id, 
+            project.title, 
+            processedCode
+          );
+          
+          if (!saveSuccess) {
+            console.error('Failed to create project file');
+          }
+        }
+
+        // Also save to Supabase storage for backup
         if (project) {
           try {
             // Create blob with proper MIME type and upload as buffer

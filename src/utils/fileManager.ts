@@ -1,4 +1,5 @@
 import { toast } from 'sonner';
+import { supabase } from '@/integrations/supabase/client';
 
 export interface ProjectFile {
   id: string;
@@ -11,62 +12,59 @@ export class FileManager {
     return `${projectId}.html`;
   }
 
-  private static getFilePath(projectId: string): string {
-    return `public/${this.getFileName(projectId)}`;
-  }
-
   static async createProjectFile(projectId: string, title: string, content: string): Promise<boolean> {
     try {
       const fileName = this.getFileName(projectId);
-      const filePath = this.getFilePath(projectId);
-
+      
       // Create the HTML content with proper structure
       const htmlContent = this.processHtmlContent(content, title);
 
-      // Store file data in localStorage for preview functionality
+      // Store in Supabase storage (create a public bucket for HTML files)
+      const { data: uploadData, error: uploadError } = await supabase.storage
+        .from('project-files')
+        .upload(`${projectId}/${fileName}`, new Blob([htmlContent], { type: 'text/html' }), {
+          contentType: 'text/html',
+          upsert: true, // This will overwrite if exists
+          cacheControl: '3600'
+        });
+
+      if (uploadError) {
+        // Fallback to localStorage if Supabase storage fails
+        localStorage.setItem(`project_file_${projectId}`, JSON.stringify({
+          id: projectId,
+          title,
+          content: htmlContent,
+          fileName,
+          createdAt: new Date().toISOString()
+        }));
+        
+        console.log('Stored in localStorage as fallback');
+        return true;
+      }
+
+      // Also store metadata in localStorage for quick access
       localStorage.setItem(`project_file_${projectId}`, JSON.stringify({
         id: projectId,
         title,
         content: htmlContent,
         fileName,
-        filePath,
+        supabaseUrl: uploadData.path,
         createdAt: new Date().toISOString()
       }));
-
-      // For Railway deployment, create a downloadable file that can be manually placed
-      // This creates a download link for the user to save the file
-      this.createDownloadableFile(fileName, htmlContent);
       
+      toast.success('Project file created successfully');
       return true;
     } catch (error) {
       console.error('Error creating project file:', error);
+      toast.error('Failed to create project file');
       return false;
     }
   }
 
   static async updateProjectFile(projectId: string, title: string, content: string): Promise<boolean> {
     try {
-      const existingData = localStorage.getItem(`project_file_${projectId}`);
-      if (!existingData) {
-        return this.createProjectFile(projectId, title, content);
-      }
-
-      const fileData = JSON.parse(existingData);
-      const htmlContent = this.processHtmlContent(content, title);
-
-      const updatedData = {
-        ...fileData,
-        title,
-        content: htmlContent,
-        updatedAt: new Date().toISOString()
-      };
-
-      localStorage.setItem(`project_file_${projectId}`, JSON.stringify(updatedData));
-      
-      console.log(`File updated at: ${fileData.filePath}`);
-      console.log(`Content length: ${htmlContent.length} characters`);
-      
-      return true;
+      // Same as create - it will upsert
+      return this.createProjectFile(projectId, title, content);
     } catch (error) {
       console.error('Error updating project file:', error);
       return false;
@@ -75,13 +73,16 @@ export class FileManager {
 
   static async deleteProjectFile(projectId: string): Promise<boolean> {
     try {
-      const existingData = localStorage.getItem(`project_file_${projectId}`);
-      if (existingData) {
-        const fileData = JSON.parse(existingData);
-        console.log(`File should be deleted from: ${fileData.filePath}`);
-      }
+      const fileName = this.getFileName(projectId);
+      
+      // Delete from Supabase storage
+      await supabase.storage
+        .from('project-files')
+        .remove([`${projectId}/${fileName}`]);
 
+      // Remove from localStorage
       localStorage.removeItem(`project_file_${projectId}`);
+      
       return true;
     } catch (error) {
       console.error('Error deleting project file:', error);
@@ -106,32 +107,55 @@ export class FileManager {
     }
   }
 
-  static getProjectFileUrl(projectId: string): string {
-    const fileName = this.getFileName(projectId);
-    // For Railway.app, files in public folder are served directly
-    return `/${fileName}`;
+  static async getProjectFileUrl(projectId: string): Promise<string | null> {
+    try {
+      const fileName = this.getFileName(projectId);
+      
+      // Get public URL from Supabase storage
+      const { data } = supabase.storage
+        .from('project-files')
+        .getPublicUrl(`${projectId}/${fileName}`);
+      
+      if (data && data.publicUrl) {
+        return data.publicUrl;
+      }
+      
+      // Fallback to creating a data URL from localStorage
+      const fileData = this.getProjectFile(projectId);
+      if (fileData) {
+        // Create a proper HTML file URL
+        const blob = new Blob([fileData.content], { type: 'text/html' });
+        return URL.createObjectURL(blob);
+      }
+      
+      return null;
+    } catch (error) {
+      console.error('Error getting project file URL:', error);
+      return null;
+    }
   }
 
-  static openPreview(projectId: string): void {
-    // Get the stored file content
-    const fileData = this.getProjectFile(projectId);
-    if (!fileData) {
-      toast.error('No file found for this project. Please save first.');
-      return;
-    }
-
-    // Create a blob URL from the stored content for preview
-    const blob = new Blob([fileData.content], { type: 'text/html' });
-    const url = URL.createObjectURL(blob);
-    
-    const previewWindow = window.open(url, '_blank', 'toolbar=yes,scrollbars=yes,resizable=yes,width=1200,height=800');
-    
-    if (previewWindow) {
-      toast.success('Preview opened in new tab');
-      // Clean up the blob URL after a short delay
-      setTimeout(() => URL.revokeObjectURL(url), 30000);
-    } else {
-      toast.error('Please allow pop-ups to open preview');
+  static async openPreview(projectId: string): Promise<void> {
+    try {
+      // First try to get the Supabase public URL
+      const url = await this.getProjectFileUrl(projectId);
+      
+      if (!url) {
+        toast.error('No file found for this project. Please save first.');
+        return;
+      }
+      
+      // Open in new tab
+      const previewWindow = window.open(url, '_blank');
+      
+      if (previewWindow) {
+        toast.success('Preview opened in new tab');
+      } else {
+        toast.error('Please allow pop-ups to open preview');
+      }
+    } catch (error) {
+      console.error('Error opening preview:', error);
+      toast.error('Failed to open preview');
     }
   }
 
@@ -148,6 +172,14 @@ export class FileManager {
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>${title}</title>
+    <style>
+      body {
+        font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
+        margin: 0;
+        padding: 20px;
+        line-height: 1.6;
+      }
+    </style>
 </head>
 <body>
 ${content}
@@ -155,22 +187,29 @@ ${content}
 </html>`;
   }
 
-  private static createDownloadableFile(fileName: string, content: string): void {
-    // Create a downloadable file for manual deployment to Railway
-    console.log(`To deploy to Railway, create file: public/${fileName}`);
-    console.log('File content ready for download/copy');
+  static async downloadFile(projectId: string): Promise<void> {
+    const fileData = this.getProjectFile(projectId);
+    if (!fileData) {
+      toast.error('No file found for this project');
+      return;
+    }
     
-    // Optionally create download link (commented out to avoid automatic downloads)
-    // const blob = new Blob([content], { type: 'text/html' });
-    // const url = URL.createObjectURL(blob);
-    // const a = document.createElement('a');
-    // a.href = url;
-    // a.download = fileName;
-    // a.click();
-    // URL.revokeObjectURL(url);
+    const fileName = this.getFileName(projectId);
+    const blob = new Blob([fileData.content], { type: 'text/html' });
+    const url = URL.createObjectURL(blob);
+    
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = fileName;
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+    URL.revokeObjectURL(url);
+    
+    toast.success(`Downloaded ${fileName}`);
   }
 
-  static listAllProjectFiles(): Array<{id: string, title: string, fileName: string, filePath: string, createdAt: string}> {
+  static listAllProjectFiles(): Array<{id: string, title: string, fileName: string, createdAt: string}> {
     const files = [];
     for (let i = 0; i < localStorage.length; i++) {
       const key = localStorage.key(i);
@@ -181,7 +220,6 @@ ${content}
             id: data.id,
             title: data.title,
             fileName: data.fileName,
-            filePath: data.filePath,
             createdAt: data.createdAt
           });
         } catch (e) {

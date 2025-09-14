@@ -165,7 +165,7 @@ const Dashboard = () => {
                     <Button
                       variant="outline"
                       size="sm"
-                      onClick={() => FileManager.openPreview(project.id)}
+                      onClick={async () => await FileManager.openPreview(project.id)}
                       className="flex items-center gap-1"
                     >
                       <Eye className="h-4 w-4" />
