@@ -353,31 +353,13 @@ const WebsiteBuilder = () => {
           {currentProject && (
             <Button 
               variant="outline" 
-              onClick={() => FileManager.openPreview(currentProject.id)} 
+              onClick={async () => await FileManager.openPreview(currentProject.id)} 
               className="flex items-center gap-2"
             >
               <Eye className="h-4 w-4" />
               Preview
             </Button>
           )}
-          <Button onClick={handleSave} disabled={isSaving} className="flex items-center gap-2">
-            <Save className="h-4 w-4" />
-            {isSaving ? 'Saving...' : user ? 'Save & Version' : 'Save (Test Mode)'}
-          </Button>
-        </div>="flex items-center gap-2"
-            >
-              <Eye className="h-4 w-4" />
-              Preview
-            </Button>
-          )}
-          <Button 
-            variant="outline" 
-            onClick={openInWebsiteMode} 
-            className="flex items-center gap-2"
-          >
-            <Globe className="h-4 w-4" />
-            Website Mode
-          </Button>
           <Button onClick={handleSave} disabled={isSaving} className="flex items-center gap-2">
             <Save className="h-4 w-4" />
             {isSaving ? 'Saving...' : user ? 'Save & Version' : 'Save (Test Mode)'}
