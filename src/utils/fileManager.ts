@@ -6,39 +6,47 @@ export interface ProjectFile {
   title: string;
   content: string;
   slug?: string;
+  userSequentialId?: number;
 }
 
 export class FileManager {
-  // Generate unique filename using user_id and project_id to avoid conflicts
-  private static getFileName(projectId: string, userId?: string, slug?: string): string {
-    // If slug is provided, use it for user-friendly URLs
-    if (slug) {
-      // Sanitize slug to be URL-safe
-      const safeSlug = slug.toLowerCase()
-        .replace(/[^a-z0-9-]/g, '-')
-        .replace(/-+/g, '-')
-        .replace(/^-|-$/g, '');
-      return `${safeSlug}.html`;
+  // Get sequential user ID from database
+  static async getUserSequentialId(userId: string): Promise<number | null> {
+    try {
+      const { data, error } = await supabase
+        .from('user_sequences')
+        .select('sequential_id')
+        .eq('user_id', userId)
+        .single();
+      
+      if (error) {
+        console.error('Error getting sequential ID:', error);
+        return null;
+      }
+      
+      return data?.sequential_id || null;
+    } catch (error) {
+      console.error('Error fetching sequential ID:', error);
+      return null;
     }
-    
-    // Fallback to unique ID-based naming for guaranteed uniqueness
+  }
+
+  // Generate filename for storage (internal use)
+  private static getStorageFileName(projectId: string, userId?: string): string {
+    // Internal storage uses full IDs for uniqueness
     if (userId) {
       return `${userId}_${projectId}.html`;
     }
     return `${projectId}.html`;
   }
 
-  // Generate a slug from project title
-  static generateSlug(title: string, projectId: string): string {
-    const baseSlug = title.toLowerCase()
+  // Generate a clean slug from project title
+  static generateSlug(title: string): string {
+    return title.toLowerCase()
       .replace(/[^a-z0-9\s-]/g, '')
       .replace(/\s+/g, '-')
       .replace(/-+/g, '-')
       .replace(/^-|-$/g, '');
-    
-    // Add first 8 chars of project ID to ensure uniqueness
-    const shortId = projectId.substring(0, 8);
-    return `${baseSlug}-${shortId}`;
   }
 
   static async createProjectFile(
@@ -48,17 +56,23 @@ export class FileManager {
     userId?: string
   ): Promise<boolean> {
     try {
-      // Generate a unique slug for this project
-      const slug = this.generateSlug(title, projectId);
-      const fileName = this.getFileName(projectId, userId, slug);
+      // Get user's sequential ID for URL generation
+      let userSequentialId: number | null = null;
+      if (userId) {
+        userSequentialId = await this.getUserSequentialId(userId);
+      }
+
+      // Generate a clean slug for the URL
+      const slug = this.generateSlug(title);
+      const storageFileName = this.getStorageFileName(projectId, userId);
       
       // Create the HTML content with proper structure
       const htmlContent = this.processHtmlContent(content, title);
 
-      // Store in Supabase storage with user-specific path for organization
+      // Store in Supabase storage with user-specific path
       const storagePath = userId 
-        ? `users/${userId}/projects/${fileName}`
-        : `projects/${fileName}`;
+        ? `users/${userId}/projects/${storageFileName}`
+        : `projects/${storageFileName}`;
 
       const { data: uploadData, error: uploadError } = await supabase.storage
         .from('project-files')
@@ -75,9 +89,10 @@ export class FileManager {
           id: projectId,
           title,
           content: htmlContent,
-          fileName,
+          fileName: storageFileName,
           slug,
           userId,
+          userSequentialId,
           createdAt: new Date().toISOString()
         }));
         
@@ -85,14 +100,15 @@ export class FileManager {
         return true;
       }
 
-      // Store metadata including slug for URL generation
+      // Store metadata including sequential ID and slug
       localStorage.setItem(`project_file_${projectId}`, JSON.stringify({
         id: projectId,
         title,
         content: htmlContent,
-        fileName,
+        fileName: storageFileName,
         slug,
         userId,
+        userSequentialId,
         storagePath,
         supabaseUrl: uploadData.path,
         createdAt: new Date().toISOString()
@@ -114,7 +130,7 @@ export class FileManager {
     userId?: string
   ): Promise<boolean> {
     try {
-      // Get existing file data to check if we need to rename
+      // Get existing file data to check if we need to update storage
       const existingData = localStorage.getItem(`project_file_${projectId}`);
       let oldStoragePath: string | null = null;
       
@@ -122,16 +138,14 @@ export class FileManager {
         const parsed = JSON.parse(existingData);
         oldStoragePath = parsed.storagePath;
         
-        // If title changed, we need to update the slug and filename
+        // If title changed, we need to update the slug but keep the same storage file
         if (parsed.title !== title && oldStoragePath) {
-          // Delete old file
-          await supabase.storage
-            .from('project-files')
-            .remove([oldStoragePath]);
+          // Just update the metadata, no need to move the file
+          // The URL will change but the storage location remains the same
         }
       }
       
-      // Create/update with new filename
+      // Create/update with potentially new slug
       return this.createProjectFile(projectId, title, content, userId);
     } catch (error) {
       console.error('Error updating project file:', error);
@@ -147,7 +161,7 @@ export class FileManager {
     userId?: string
   ): Promise<boolean> {
     try {
-      // This will handle renaming by creating new file and deleting old
+      // Update the project with new title (which updates the slug for URL)
       return this.updateProjectFile(projectId, newTitle, content, userId);
     } catch (error) {
       console.error('Error renaming project:', error);
@@ -197,7 +211,8 @@ export class FileManager {
         id: fileData.id,
         title: fileData.title,
         content: fileData.content,
-        slug: fileData.slug
+        slug: fileData.slug,
+        userSequentialId: fileData.userSequentialId
       };
     } catch (error) {
       console.error('Error getting project file:', error);
@@ -237,21 +252,22 @@ export class FileManager {
     }
   }
 
-  // Get user-friendly URL with slug
-  static getProjectSlugUrl(projectId: string): string | null {
+  // Get user-friendly URL in format: /user_sequential_id/preview/project-slug
+  static getProjectFriendlyUrl(projectId: string): string | null {
     try {
       const data = localStorage.getItem(`project_file_${projectId}`);
       if (!data) return null;
       
       const fileData = JSON.parse(data);
-      if (fileData.slug) {
-        // Return a user-friendly URL path
-        return `/preview/${fileData.slug}`;
-      }
       
-      return `/preview/${projectId}`;
+      // Use sequential ID if available, otherwise use first 8 chars of project ID
+      const userIdentifier = fileData.userSequentialId || projectId.substring(0, 8);
+      const slug = fileData.slug || 'project';
+      
+      // Return URL in format: /sequential_id/preview/project-name
+      return `/${userIdentifier}/preview/${slug}`;
     } catch (error) {
-      console.error('Error getting project slug URL:', error);
+      console.error('Error getting project friendly URL:', error);
       return null;
     }
   }
@@ -265,11 +281,19 @@ export class FileManager {
         return;
       }
       
-      // Open in new tab
+      // Get the friendly URL for display
+      const friendlyUrl = this.getProjectFriendlyUrl(projectId);
+      if (friendlyUrl) {
+        // In production, this would open the friendly URL
+        // For now, we'll show it to the user
+        console.log('Friendly URL:', window.location.origin + friendlyUrl);
+      }
+      
+      // Open the actual file URL in new tab
       const previewWindow = window.open(url, '_blank');
       
       if (previewWindow) {
-        toast.success('Preview opened in new tab');
+        toast.success(`Preview opened! URL: ${friendlyUrl || url}`);
       } else {
         toast.error('Please allow pop-ups to open preview');
       }
@@ -316,7 +340,7 @@ ${content}
     
     const data = localStorage.getItem(`project_file_${projectId}`);
     const parsed = data ? JSON.parse(data) : null;
-    const fileName = parsed?.fileName || `${projectId}.html`;
+    const fileName = parsed?.slug ? `${parsed.slug}.html` : `${projectId}.html`;
     
     const blob = new Blob([fileData.content], { type: 'text/html' });
     const url = URL.createObjectURL(blob);
@@ -337,6 +361,8 @@ ${content}
     title: string, 
     fileName: string, 
     slug?: string,
+    userSequentialId?: number,
+    friendlyUrl?: string,
     createdAt: string
   }> {
     const files = [];
@@ -345,11 +371,14 @@ ${content}
       if (key?.startsWith('project_file_')) {
         try {
           const data = JSON.parse(localStorage.getItem(key) || '');
+          const userIdentifier = data.userSequentialId || data.id.substring(0, 8);
           files.push({
             id: data.id,
             title: data.title,
             fileName: data.fileName,
             slug: data.slug,
+            userSequentialId: data.userSequentialId,
+            friendlyUrl: `/${userIdentifier}/preview/${data.slug || 'project'}`,
             createdAt: data.createdAt
           });
         } catch (e) {

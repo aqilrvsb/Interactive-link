@@ -205,7 +205,14 @@ const Dashboard = () => {
                     <Button
                       variant="outline"
                       size="sm"
-                      onClick={async () => await FileManager.openPreview(project.id)}
+                      onClick={async () => {
+                        await FileManager.openPreview(project.id);
+                        // Show the friendly URL format to users
+                        const friendlyUrl = FileManager.getProjectFriendlyUrl(project.id);
+                        if (friendlyUrl) {
+                          console.log(`Preview URL: ${window.location.origin}${friendlyUrl}`);
+                        }
+                      }}
                       className="flex items-center gap-1"
                     >
                       <Eye className="h-4 w-4" />

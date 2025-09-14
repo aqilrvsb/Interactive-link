@@ -34,7 +34,7 @@ const App = () => (
             <Route path="/website-builder/:projectId" element={<WebsiteBuilder />} />
             <Route path="/chat-editor" element={<ChatEditor />} />
             <Route path="/chat-editor/:projectId" element={<ChatEditor />} />
-            <Route path="/preview/:slug" element={<PreviewPage />} />
+            <Route path="/:userId/preview/:slug" element={<PreviewPage />} />
             {/* ADD ALL CUSTOM ROUTES ABOVE THE CATCH-ALL "*" ROUTE */}
             <Route path="*" element={<NotFound />} />
           </Routes>
