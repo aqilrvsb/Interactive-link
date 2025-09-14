@@ -4,7 +4,7 @@ import { Button } from '@/components/ui/button';
 import { Textarea } from '@/components/ui/textarea';
 import { ResizablePanelGroup, ResizablePanel, ResizableHandle } from '@/components/ui/resizable';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
-import { ArrowLeft, Save, Settings, Files, Globe, Code2, Maximize, ExternalLink, X } from 'lucide-react';
+import { ArrowLeft, Save, Settings, Files, Globe, Code2, Maximize, ExternalLink, X, Eye } from 'lucide-react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Separator } from '@/components/ui/separator';
 import { useProjects } from '@/hooks/useProjects';
@@ -14,6 +14,7 @@ import { supabase } from '@/integrations/supabase/client';
 import { ProjectFilesView } from '@/components/website-builder/ProjectFilesView';
 import { SupabaseSettings } from '@/components/website-builder/SupabaseSettings';
 import { DomainManagement } from '@/components/website-builder/DomainManagement';
+import { FileManager } from '@/utils/fileManager';
 import { toast } from 'sonner';
 
 const WebsiteBuilder = () => {
@@ -346,6 +347,16 @@ const WebsiteBuilder = () => {
           </h1>
         </div>
         <div className="flex items-center gap-2">
+          {currentProject && (
+            <Button 
+              variant="outline" 
+              onClick={() => FileManager.openPreview(currentProject.id)} 
+              className="flex items-center gap-2"
+            >
+              <Eye className="h-4 w-4" />
+              Preview
+            </Button>
+          )}
           <Button 
             variant="outline" 
             onClick={openInWebsiteMode} 

@@ -2,6 +2,7 @@ import { useState, useEffect } from 'react';
 import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/contexts/AuthContext';
 import { toast } from 'react-hot-toast';
+import { FileManager } from '@/utils/fileManager';
 
 export interface Project {
   id: string;
@@ -63,8 +64,21 @@ export const useProjects = () => {
 
       if (error) throw error;
       
+      // Create HTML file in project directory
+      if (projectData.code_content) {
+        const fileCreated = await FileManager.createProjectFile(
+          data.id,
+          projectData.title,
+          projectData.code_content
+        );
+        
+        if (fileCreated) {
+          console.log(`HTML file created for project: ${data.id}`);
+        }
+      }
+      
       setProjects(prev => [data, ...prev]);
-      toast.success('Project created successfully');
+      toast.success('Project and HTML file created successfully');
       return data;
     } catch (error: any) {
       toast.error('Failed to create project');
@@ -84,8 +98,21 @@ export const useProjects = () => {
 
       if (error) throw error;
       
+      // Update HTML file if code content changed
+      if (updates.code_content) {
+        const fileUpdated = await FileManager.updateProjectFile(
+          id,
+          updates.title || data.title,
+          updates.code_content
+        );
+        
+        if (fileUpdated) {
+          console.log(`HTML file updated for project: ${id}`);
+        }
+      }
+      
       setProjects(prev => prev.map(p => p.id === id ? data : p));
-      toast.success('Project updated successfully');
+      toast.success('Project and HTML file updated successfully');
       return data;
     } catch (error: any) {
       toast.error('Failed to update project');
@@ -103,8 +130,14 @@ export const useProjects = () => {
 
       if (error) throw error;
       
+      // Delete HTML file from project directory
+      const fileDeleted = await FileManager.deleteProjectFile(id);
+      if (fileDeleted) {
+        console.log(`HTML file deleted for project: ${id}`);
+      }
+      
       setProjects(prev => prev.filter(p => p.id !== id));
-      toast.success('Project deleted successfully');
+      toast.success('Project and HTML file deleted successfully');
     } catch (error: any) {
       toast.error('Failed to delete project');
       console.error('Error deleting project:', error);

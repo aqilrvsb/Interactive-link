@@ -7,8 +7,9 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/com
 import { Badge } from '@/components/ui/badge';
 import { Skeleton } from '@/components/ui/skeleton';
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from '@/components/ui/dropdown-menu';
-import { Plus, Calendar, User, LogOut, Trash2, Edit, Globe, ChevronDown } from 'lucide-react';
+import { Plus, Calendar, User, LogOut, Trash2, Edit, Globe, ChevronDown, Eye } from 'lucide-react';
 import { formatDistanceToNow } from 'date-fns';
+import { FileManager } from '@/utils/fileManager';
 
 const Dashboard = () => {
   const { user, signOut } = useAuth();
@@ -161,6 +162,15 @@ const Dashboard = () => {
                     </div>
                   </div>
                   <div className="flex gap-2 mt-4">
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      onClick={() => FileManager.openPreview(project.id)}
+                      className="flex items-center gap-1"
+                    >
+                      <Eye className="h-4 w-4" />
+                      Preview
+                    </Button>
                     <Button
                       variant="default"
                       className="flex-1"
