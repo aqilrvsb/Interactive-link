@@ -4,38 +4,29 @@ import { supabase } from '@/integrations/supabase/client';
 import { Loader2 } from 'lucide-react';
 
 const LivePreview = () => {
-  const { userId, projectId, projectName } = useParams();
+  const { projectId, projectName, userId } = useParams();
   const [htmlContent, setHtmlContent] = useState<string>('');
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
     const loadLivePreview = async () => {
-      if (!userId || !projectId) {
+      // Check if we have projectId (could be in position 1 or 2)
+      const actualProjectId = userId && projectId && projectName 
+        ? projectId  // Old format: /userId/projectId/projectName
+        : projectId || userId;  // New format: /projectId/projectName or /projectId
+      
+      if (!actualProjectId) {
         setError('Invalid preview URL');
         setLoading(false);
         return;
       }
 
       try {
-        console.log('Loading live preview:', { userId, projectId, projectName });
+        console.log('Loading live preview for project:', actualProjectId);
         
         // First, check if projectId is a sequential ID (integer)
-        let actualProjectId = projectId;
-        
-        if (/^\d+$/.test(projectId)) {
-          // It's a sequential project ID, get the actual UUID
-          const { data: projectSeq } = await supabase
-            .from('project_sequences')
-            .select('project_id')
-            .eq('sequential_id', parseInt(projectId))
-            .maybeSingle();
-            
-          if (projectSeq?.project_id) {
-            actualProjectId = projectSeq.project_id;
-            console.log('Found project by sequential ID:', actualProjectId);
-          }
-        }
+        // No need to convert, it's already an integer in the database
         
         // First, try to fetch directly from storage (public access)
         // Try different file name patterns
@@ -103,7 +94,7 @@ const LivePreview = () => {
           const { data: project } = await supabase
             .from('projects')
             .select('code_content, title, is_public')
-            .eq('id', actualProjectId)
+            .eq('id', parseInt(actualProjectId))
             .eq('is_public', true) // Only public projects
             .maybeSingle();
 
@@ -122,7 +113,7 @@ const LivePreview = () => {
     };
 
     loadLivePreview();
-  }, [userId, projectId, projectName]);
+  }, [projectId, projectName, userId]);
 
   if (loading) {
     return (

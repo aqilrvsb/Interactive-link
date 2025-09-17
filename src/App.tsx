@@ -35,12 +35,13 @@ const App = () => (
             <Route path="/website-builder/:projectId" element={<WebsiteBuilder />} />
             <Route path="/chat-editor" element={<ChatEditor />} />
             <Route path="/chat-editor/:projectId" element={<ChatEditor />} />
-            {/* OLD route for backwards compatibility */}
+            {/* Simple URL format: /projectId/project-name */}
+            <Route path="/:projectId/:projectName" element={<LivePreview />} />
+            {/* Fallback for just projectId */}
+            <Route path="/:projectId" element={<LivePreview />} />
+            {/* OLD routes for backwards compatibility */}
             <Route path="/:userId/preview/:slug" element={<PreviewPage />} />
-            {/* NEW clean URL format: /userId/projectId/project-name */}
             <Route path="/:userId/:projectId/:projectName" element={<LivePreview />} />
-            {/* Alternative formats */}
-            <Route path="/:userId/:projectId" element={<LivePreview />} />
             {/* ADD ALL CUSTOM ROUTES ABOVE THE CATCH-ALL "*" ROUTE */}
             <Route path="*" element={<NotFound />} />
           </Routes>
