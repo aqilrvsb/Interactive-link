@@ -5,7 +5,7 @@
 - No ngrok dependencies
 - Build command: `npm run build`
 - Dev command: `npm run dev`
-- Runs on: http://localhost:8082
+- Runs on: http://localhost:8080
 
 ## 2. 📋 SUPABASE DATABASE SETUP
 

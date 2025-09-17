@@ -5,7 +5,7 @@
 ### 1. **LOCAL BUILD** ✅
 - No ngrok dependencies
 - Build successful
-- Runs on: http://localhost:8083
+- Runs on: http://localhost:8080
 - Commands:
   - `npm run dev` - Development
   - `npm run build` - Production build
