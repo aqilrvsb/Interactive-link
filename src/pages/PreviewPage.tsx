@@ -1,103 +1,87 @@
 import { useEffect, useState } from 'react';
-import { useParams } from 'react-router-dom';
+import { useParams, useSearchParams } from 'react-router-dom';
 import { supabase } from '@/integrations/supabase/client';
+import { Loader2 } from 'lucide-react';
+
 const PreviewPage = () => {
-  const { userId, slug } = useParams(); // Now expecting /userId/preview/slug
+  const { userId, slug } = useParams();
+  const [searchParams] = useSearchParams();
   const [htmlContent, setHtmlContent] = useState<string>('');
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
     const loadPreview = async () => {
-      if (!userId || !slug) {
-        setError('Invalid preview URL');
-        setLoading(false);
-        return;
-      }
-
       try {
-        // First, try to find the project by matching the slug and user sequential ID
-        let foundContent = false;
+        // Check if we have a direct storage URL in query params
+        const storageUrl = searchParams.get('url');
         
-        // Check localStorage for matching project
-        for (let i = 0; i < localStorage.length; i++) {
-          const key = localStorage.key(i);
-          if (key?.startsWith('project_file_')) {
-            try {
-              const fileData = JSON.parse(localStorage.getItem(key) || '');
-              
-              // Match by sequential ID and slug
-              const userIdMatch = fileData.userSequentialId?.toString() === userId || 
-                                 fileData.id.substring(0, 8) === userId;
-              const slugMatch = fileData.slug === slug;              
-              if (userIdMatch && slugMatch) {
-                // Found matching project
-                if (fileData.storagePath) {
-                  // Try to load from Supabase
-                  const { data: urlData } = supabase.storage
-                    .from('project-files')
-                    .getPublicUrl(fileData.storagePath);
-                  
-                  if (urlData?.publicUrl) {
-                    // Fetch the content
-                    const response = await fetch(urlData.publicUrl);
-                    if (response.ok) {
-                      const text = await response.text();
-                      setHtmlContent(text);
-                      foundContent = true;
-                      break;
-                    }
-                  }
-                }
-                
-                // Fallback to localStorage content
-                if (!foundContent && fileData.content) {
-                  setHtmlContent(fileData.content);
-                  foundContent = true;
-                  break;
-                }
-              }
-            } catch (e) {
-              console.error('Error parsing file data:', e);
-            }
+        if (storageUrl) {
+          // Fetch the HTML content from the storage URL
+          const response = await fetch(storageUrl);
+          if (response.ok) {
+            const content = await response.text();
+            setHtmlContent(content);
+          } else {
+            setError('Failed to load preview content');
           }
-        }        
-        if (!foundContent) {
-          // Try direct Supabase search as fallback
-          // Convert sequential ID back to UUID if needed
-          const { data: userData } = await supabase
-            .from('user_sequences')
-            .select('user_id')
-            .eq('sequential_id', parseInt(userId))
-            .single();
+        } else if (userId && slug) {
+          // Original logic for loading by userId and slug
           
-          if (userData?.user_id) {
-            // Search for files in user's directory
-            const { data: files } = await supabase.storage
-              .from('project-files')
-              .list(`users/${userData.user_id}/projects`);
-            
-            if (files && files.length > 0) {
-              // Try to find a file that might match the slug
-              for (const file of files) {
-                if (file.name.includes(slug) || file.name.includes(userData.user_id)) {
-                  const { data: fileData } = await supabase.storage
-                    .from('project-files')
-                    .download(`users/${userData.user_id}/projects/${file.name}`);
+          // First try to find by sequential ID
+          if (/^\d+$/.test(userId)) {
+            const { data: userData } = await supabase
+              .from('user_sequences')
+              .select('user_id')
+              .eq('sequential_id', parseInt(userId))
+              .maybeSingle();
+              
+            if (userData?.user_id) {
+              // Get project from database
+              const { data: project } = await supabase
+                .from('projects')
+                .select('code_content, is_public')
+                .eq('user_id', userData.user_id)
+                .ilike('title', slug.replace(/-/g, ' '))
+                .maybeSingle();
+                
+              if (project?.code_content) {
+                setHtmlContent(project.code_content);
+              } else {
+                // Try to fetch from storage
+                const fileName = `${userId}/index.html`;
+                const { data: urlData } = supabase.storage
+                  .from('websites')
+                  .getPublicUrl(fileName);
                   
-                  if (fileData) {
-                    const text = await fileData.text();
-                    setHtmlContent(text);
-                    foundContent = true;
-                    break;
+                if (urlData?.publicUrl) {
+                  const response = await fetch(urlData.publicUrl);
+                  if (response.ok) {
+                    const content = await response.text();
+                    setHtmlContent(content);
                   }
                 }
               }
             }
+          } else {
+            // Try by partial UUID
+            const fileName = `${userId}/index.html`;
+            const { data: urlData } = supabase.storage
+              .from('websites')
+              .getPublicUrl(fileName);
+              
+            if (urlData?.publicUrl) {
+              const response = await fetch(urlData.publicUrl);
+              if (response.ok) {
+                const content = await response.text();
+                setHtmlContent(content);
+              }
+            }
           }
-        }        
-        if (!foundContent) {
-          setError('Preview not found. Make sure the project has been saved.');
+        }
+        
+        if (!htmlContent && !storageUrl) {
+          setError('Preview not found');
         }
       } catch (err) {
         console.error('Error loading preview:', err);
@@ -108,15 +92,12 @@ const PreviewPage = () => {
     };
 
     loadPreview();
-  }, [userId, slug]);
+  }, [userId, slug, searchParams, htmlContent]);
 
   if (loading) {
     return (
       <div className="flex items-center justify-center min-h-screen">
-        <div className="text-center">
-          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-primary mx-auto"></div>
-          <p className="mt-4">Loading preview...</p>
-        </div>
+        <Loader2 className="h-8 w-8 animate-spin" />
       </div>
     );
   }
@@ -127,22 +108,20 @@ const PreviewPage = () => {
         <div className="text-center">
           <h1 className="text-2xl font-bold mb-2">Error</h1>
           <p className="text-muted-foreground">{error}</p>
-          <p className="text-sm mt-2">URL Format: /{userId}/preview/{project-name}</p>
         </div>
       </div>
     );
   }
 
-  // Render the HTML content in an iframe for isolation
+  // Render the HTML content in an iframe using srcdoc
   return (
-    <div className="w-full h-screen">
-      <iframe
-        srcDoc={htmlContent}
-        className="w-full h-full border-0"
-        title="Preview"
-        sandbox="allow-scripts allow-same-origin"
-      />
-    </div>
+    <iframe
+      srcdoc={htmlContent}
+      className="w-full h-screen border-0"
+      title="Preview"
+      sandbox="allow-scripts allow-same-origin allow-forms allow-modals allow-popups allow-popups-to-escape-sandbox"
+      style={{ width: '100vw', height: '100vh', position: 'fixed', top: 0, left: 0 }}
+    />
   );
 };
 

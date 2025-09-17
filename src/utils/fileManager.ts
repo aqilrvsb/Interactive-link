@@ -120,7 +120,7 @@ export class FileManager {
     }
   }
 
-  // Open preview using the Supabase Storage public URL
+  // Open preview using the renderer HTML that converts plain text to rendered HTML
   static async openPreview(projectId: string): Promise<void> {
     try {
       // First check with project ID
@@ -130,9 +130,9 @@ export class FileManager {
         .getPublicUrl(fileName);
       
       if (publicUrlData?.publicUrl) {
-        // Add timestamp to bypass browser cache
-        const freshUrl = `${publicUrlData.publicUrl}?v=${Date.now()}`;
-        window.open(freshUrl, '_blank');
+        // Use the preview renderer to display the HTML properly
+        const rendererUrl = `/preview-renderer.html?url=${encodeURIComponent(publicUrlData.publicUrl)}&project=${projectId}&v=${Date.now()}`;
+        window.open(rendererUrl, '_blank');
         toast.success('Preview opened with latest changes');
         return;
       }
@@ -153,8 +153,9 @@ export class FileManager {
             .getPublicUrl(fileName);
           
           if (seqUrlData?.publicUrl) {
-            const freshUrl = `${seqUrlData.publicUrl}?v=${Date.now()}`;
-            window.open(freshUrl, '_blank');
+            // Use the preview renderer to display the HTML properly
+            const rendererUrl = `/preview-renderer.html?url=${encodeURIComponent(seqUrlData.publicUrl)}&project=${projectId}&v=${Date.now()}`;
+            window.open(rendererUrl, '_blank');
             toast.success('Preview opened with latest changes');
             return;
           }
