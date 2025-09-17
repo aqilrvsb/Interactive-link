@@ -259,7 +259,9 @@ const WebsiteBuilder = () => {
     } finally {
       setIsSaving(false);
     }
-  }; () => {
+  };
+
+  const handleQuickSave = async () => {
     if (!code.trim()) {
       toast.error('Please add some code before saving');
       return;
@@ -277,7 +279,8 @@ const WebsiteBuilder = () => {
         const title = currentProject?.title || `Website - ${new Date().toLocaleDateString()}`;
         
         // Make sure we have a user ID to save with
-        const userId = user?.id || (await supabase.auth.getUser()).data.user?.id;
+        const { data: userData } = await supabase.auth.getUser();
+        const userId = user?.id || userData?.user?.id;
         
         if (!userId) {
           // Fallback to test mode if no user
@@ -320,7 +323,8 @@ const WebsiteBuilder = () => {
         // Save HTML file using FileManager for proper file creation and preview
         if (project) {
           // Get user ID from multiple sources
-          const userId = user?.id || (await supabase.auth.getUser()).data.user?.id;
+          const { data: authData } = await supabase.auth.getUser();
+          const userId = user?.id || authData?.user?.id;
           
           if (userId) {
             // Get the user's sequential ID from Supabase
