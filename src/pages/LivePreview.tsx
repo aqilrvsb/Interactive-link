@@ -20,12 +20,29 @@ const LivePreview = () => {
       try {
         console.log('Loading live preview:', { userId, projectId, projectName });
         
+        // First, check if projectId is a sequential ID (integer)
+        let actualProjectId = projectId;
+        
+        if (/^\d+$/.test(projectId)) {
+          // It's a sequential project ID, get the actual UUID
+          const { data: projectSeq } = await supabase
+            .from('project_sequences')
+            .select('project_id')
+            .eq('sequential_id', parseInt(projectId))
+            .maybeSingle();
+            
+          if (projectSeq?.project_id) {
+            actualProjectId = projectSeq.project_id;
+            console.log('Found project by sequential ID:', actualProjectId);
+          }
+        }
+        
         // First, try to fetch directly from storage (public access)
         // Try different file name patterns
         let htmlContent = null;
         
-        // Pattern 1: projectId/index.html
-        let fileName = `${projectId}/index.html`;
+        // Pattern 1: actualProjectId/index.html
+        let fileName = `${actualProjectId}/index.html`;
         let { data: urlData } = supabase.storage
           .from('websites')
           .getPublicUrl(fileName);
@@ -86,7 +103,7 @@ const LivePreview = () => {
           const { data: project } = await supabase
             .from('projects')
             .select('code_content, title, is_public')
-            .eq('id', projectId)
+            .eq('id', actualProjectId)
             .eq('is_public', true) // Only public projects
             .maybeSingle();
 

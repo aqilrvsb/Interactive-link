@@ -8,7 +8,8 @@ export class FileManager {
     title: string, 
     htmlContent: string,
     userId?: string,
-    sequentialId?: number | null
+    sequentialId?: number | null,
+    projectSequentialId?: number | null
   ): Promise<boolean> {
     try {
       // Ensure we have a valid project ID
@@ -17,8 +18,10 @@ export class FileManager {
         return false;
       }
 
-      // Create the file path - use sequential ID if available
-      const fileName = sequentialId 
+      // Create the file path - use sequential IDs if available
+      const fileName = sequentialId && projectSequentialId
+        ? `${sequentialId}/${projectSequentialId}/index.html`
+        : sequentialId 
         ? `${sequentialId}/index.html`
         : `${projectId}/index.html`;
 
@@ -181,10 +184,10 @@ export class FileManager {
     }
   }
 
-  // Open preview using clean live URL format (public access)
-  static async openPreview(projectId: string): Promise<void> {
+  // Open preview using clean live URL format with sequential IDs
+  static async openPreview(projectId: string, projectSeqId?: number): Promise<void> {
     try {
-      // Get the project to get its title for the URL
+      // Get the project details
       const { data: project } = await supabase
         .from('projects')
         .select('title, user_id')
@@ -199,24 +202,10 @@ export class FileManager {
       // Generate slug from project title
       const projectSlug = project.title.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '');
       
-      // Try to get user's sequential ID if logged in
-      let userIdentifier: string = '';
+      // Get user's sequential ID
+      let userSeqId: number = 1; // Default to 1
       
-      const { data: userData } = await supabase.auth.getUser();
-      if (userData?.user?.id) {
-        const { data: seqData } = await supabase
-          .from('user_sequences')
-          .select('sequential_id')
-          .eq('user_id', userData.user.id)
-          .maybeSingle();
-        
-        if (seqData?.sequential_id) {
-          userIdentifier = seqData.sequential_id.toString();
-        } else {
-          userIdentifier = userData.user.id.substring(0, 8);
-        }
-      } else if (project.user_id) {
-        // If not logged in, try to get sequential ID from project's user
+      if (project.user_id) {
         const { data: seqData } = await supabase
           .from('user_sequences')
           .select('sequential_id')
@@ -224,19 +213,26 @@ export class FileManager {
           .maybeSingle();
         
         if (seqData?.sequential_id) {
-          userIdentifier = seqData.sequential_id.toString();
-        } else {
-          userIdentifier = project.user_id.substring(0, 8);
+          userSeqId = seqData.sequential_id;
         }
       }
       
-      // If still no user identifier, use first 8 chars of project user_id
-      if (!userIdentifier && project.user_id) {
-        userIdentifier = project.user_id.substring(0, 8);
+      // If no project sequential ID provided, try to get it
+      let projectIdentifier = projectSeqId?.toString();
+      
+      if (!projectIdentifier) {
+        const { data: projSeq } = await supabase
+          .from('project_sequences')
+          .select('sequential_id')
+          .eq('project_id', projectId)
+          .maybeSingle();
+        
+        projectIdentifier = projSeq?.sequential_id?.toString() || projectId.substring(0, 8);
       }
       
-      // Open clean URL format: /userId/projectId/project-name
-      const cleanUrl = `/${userIdentifier}/${projectId}/${projectSlug}`;
+      // Open clean URL format: /userSeqId/projectSeqId/project-name
+      // Example: /1/2/my-website
+      const cleanUrl = `/${userSeqId}/${projectIdentifier}/${projectSlug}`;
       window.open(cleanUrl, '_blank');
       toast.success('Preview opened');
       

@@ -6,6 +6,7 @@ import { FileManager } from '@/utils/fileManager';
 
 export interface Project {
   id: string;
+  sequential_id?: number;  // Add sequential ID
   user_id: string;
   title: string;
   description?: string;
@@ -68,7 +69,10 @@ export const useProjects = () => {
       
       const { data, error } = await supabase
         .from('projects')
-        .select('*')
+        .select(`
+          *,
+          project_sequences!inner(sequential_id)
+        `)
         .eq('user_id', userId)
         .order('updated_at', { ascending: false });
 
@@ -77,8 +81,13 @@ export const useProjects = () => {
         // Don't throw, just log and set empty
         setProjects([]);
       } else {
-        setProjects(data || []);
-        console.log('Projects loaded:', data?.length || 0);
+        // Map the data to include sequential_id
+        const projectsWithSeqId = (data || []).map(p => ({
+          ...p,
+          sequential_id: p.project_sequences?.[0]?.sequential_id || null
+        }));
+        setProjects(projectsWithSeqId);
+        console.log('Projects loaded:', projectsWithSeqId.length);
       }
     } catch (error: any) {
       console.error('Error fetching projects:', error);
