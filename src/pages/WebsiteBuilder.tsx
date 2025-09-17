@@ -357,7 +357,7 @@ const WebsiteBuilder = () => {
               console.error('Error fetching sequential ID:', err);
             }
 
-            // Save with sequential ID
+            // Save with sequential ID - this handles everything including Supabase storage
             const saveSuccess = await FileManager.createProjectFile(
               project.id, 
               project.title, 
@@ -368,43 +368,12 @@ const WebsiteBuilder = () => {
             
             if (saveSuccess) {
               console.log('Project file created successfully with sequential ID:', sequentialId);
+              // The FileManager already saves the public URL, no need to duplicate
             } else {
               console.error('Failed to create project file');
             }
           }
         }
-
-        // Also save to Supabase storage for backup
-        if (project) {
-          try {
-            // Create blob with proper MIME type and upload as buffer
-            const htmlBlob = new Blob([processedCode], { type: 'text/html; charset=utf-8' });
-            const arrayBuffer = await htmlBlob.arrayBuffer();
-            
-            const { error: uploadError } = await supabase.storage
-              .from('websites')
-              .upload(`${project.id}/index.html`, arrayBuffer, {
-                upsert: true,
-                contentType: 'text/html; charset=utf-8',
-                cacheControl: '3600'
-              });
-
-          if (uploadError) {
-            console.error('Storage upload error:', uploadError);
-          }
-        } catch (storageError) {
-          console.error('Failed to save HTML file:', storageError);
-        }
-
-        // Save the public URL for publish redirect and quick access
-        try {
-          const { data: publicData } = supabase.storage
-            .from('websites')
-            .getPublicUrl(`${project.id}/index.html`);
-          if (publicData?.publicUrl) {
-            localStorage.setItem('publicWebsiteUrl', publicData.publicUrl);
-          }
-        } catch (_) {}
 
         // Create a new version
         try {
@@ -423,7 +392,6 @@ const WebsiteBuilder = () => {
         toast.success('Project saved successfully!');
         // Auto-run the saved HTML in preview
         updatePreview();
-      }
 
     } catch (error) {
       console.error('Error saving:', error);
