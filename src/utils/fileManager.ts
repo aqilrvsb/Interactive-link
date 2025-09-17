@@ -2,7 +2,7 @@ import { toast } from 'sonner';
 import { supabase } from '@/integrations/supabase/client';
 
 export class FileManager {
-  // Save HTML to Supabase Storage and return the public URL
+  // Direct save to Supabase Storage ONLY (no database)
   static async createProjectFile(
     projectId: string, 
     title: string, 
@@ -22,11 +22,16 @@ export class FileManager {
         ? `${sequentialId}/index.html`
         : `${projectId}/index.html`;
 
-      // Upload to Supabase Storage
+      // Convert HTML string to Blob with proper MIME type
+      const htmlBlob = new Blob([htmlContent], { 
+        type: 'text/html; charset=utf-8' 
+      });
+
+      // Upload directly to Supabase Storage (this is our ONLY storage)
       const { error: uploadError } = await supabase.storage
         .from('websites')
-        .upload(fileName, htmlContent, {
-          upsert: true,
+        .upload(fileName, htmlBlob, {
+          upsert: true, // This will create new or update existing
           contentType: 'text/html; charset=utf-8',
           cacheControl: '3600'
         });
@@ -48,10 +53,10 @@ export class FileManager {
             return false;
           }
           
-          // Retry upload after creating bucket
+          // Retry upload after creating bucket with Blob
           const { error: retryError } = await supabase.storage
             .from('websites')
-            .upload(fileName, htmlContent, {
+            .upload(fileName, htmlBlob, {
               upsert: true,
               contentType: 'text/html; charset=utf-8',
               cacheControl: '3600'
@@ -76,13 +81,61 @@ export class FileManager {
         title,
         fileName,
         publicUrl,
-        createdAt: new Date().toISOString()
+        lastModified: new Date().toISOString()
       }));
       
-      console.log('File saved successfully:', publicUrl);
+      console.log('File saved successfully to storage:', publicUrl);
       return true;
     } catch (error) {
       console.error('Error creating project file:', error);
+      return false;
+    }
+  }
+
+  // Load HTML content directly from Supabase Storage for editing
+  static async loadProjectFile(projectId: string, sequentialId?: number | null): Promise<string | null> {
+    try {
+      // Determine file path
+      const fileName = sequentialId 
+        ? `${sequentialId}/index.html`
+        : `${projectId}/index.html`;
+
+      // Download the file from storage
+      const { data, error } = await supabase.storage
+        .from('websites')
+        .download(fileName);
+
+      if (error) {
+        console.error('Error loading file from storage:', error);
+        return null;
+      }
+
+      // Convert blob to text
+      const htmlContent = await data.text();
+      return htmlContent;
+    } catch (error) {
+      console.error('Error loading project file:', error);
+      return null;
+    }
+  }
+
+  // Check if file exists in storage
+  static async fileExists(projectId: string, sequentialId?: number | null): Promise<boolean> {
+    try {
+      const fileName = sequentialId 
+        ? `${sequentialId}/index.html`
+        : `${projectId}/index.html`;
+
+      const { data, error } = await supabase.storage
+        .from('websites')
+        .list(sequentialId ? sequentialId.toString() : projectId, {
+          limit: 1,
+          search: 'index.html'
+        });
+
+      return !error && data && data.length > 0;
+    } catch (error) {
+      console.error('Error checking file existence:', error);
       return false;
     }
   }
@@ -146,6 +199,32 @@ export class FileManager {
     } catch (error) {
       console.error('Error opening preview:', error);
       toast.error('Failed to open preview');
+    }
+  }
+
+  // Delete project file from storage
+  static async deleteProjectFile(projectId: string, sequentialId?: number | null): Promise<boolean> {
+    try {
+      const fileName = sequentialId 
+        ? `${sequentialId}/index.html`
+        : `${projectId}/index.html`;
+
+      const { error } = await supabase.storage
+        .from('websites')
+        .remove([fileName]);
+
+      if (error) {
+        console.error('Error deleting file:', error);
+        return false;
+      }
+
+      // Remove from localStorage
+      localStorage.removeItem(`project_file_${projectId}`);
+      
+      return true;
+    } catch (error) {
+      console.error('Error deleting project file:', error);
+      return false;
     }
   }
 
