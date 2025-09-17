@@ -63,7 +63,8 @@
     </style>
 </head>
 <body>
-    <button id="refresh-button" onclick="location.reload(true)">↻ Refresh</button>
+    <!-- Refresh button hidden - uncomment if needed -->
+    <!-- <button id="refresh-button" onclick="location.reload(true)">↻ Refresh</button> -->
     <div id="loading">
         <div>
             <div class="spinner"></div>
@@ -94,11 +95,11 @@
                     // Create the iframe and inject the HTML
                     const iframe = document.getElementById('preview-frame');
                     const loading = document.getElementById('loading');
-                    const refreshButton = document.getElementById('refresh-button');
+                    // const refreshButton = document.getElementById('refresh-button');
                     
-                    // Show iframe and refresh button, hide loading
+                    // Show iframe, hide loading (refresh button removed)
                     iframe.style.display = 'block';
-                    refreshButton.style.display = 'block';
+                    // refreshButton.style.display = 'block';
                     loading.style.display = 'none';
                     
                     // Write the HTML content to the iframe

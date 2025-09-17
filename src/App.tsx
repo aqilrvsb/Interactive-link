@@ -12,6 +12,7 @@ import Editor from "./pages/Editor";
 import WebsiteBuilder from "./pages/WebsiteBuilder";
 import ChatEditor from "./pages/ChatEditor";
 import PreviewPage from "./pages/PreviewPage";
+import LivePreview from "./pages/LivePreview";
 import NotFound from "./pages/NotFound";
 
 const queryClient = new QueryClient();
@@ -35,6 +36,9 @@ const App = () => (
             <Route path="/chat-editor" element={<ChatEditor />} />
             <Route path="/chat-editor/:projectId" element={<ChatEditor />} />
             <Route path="/:userId/preview/:slug" element={<PreviewPage />} />
+            {/* Clean URLs for live preview - for clients */}
+            <Route path="/:userId/:projectId" element={<LivePreview />} />
+            <Route path="/live/:userId/:projectId" element={<LivePreview />} />
             {/* ADD ALL CUSTOM ROUTES ABOVE THE CATCH-ALL "*" ROUTE */}
             <Route path="*" element={<NotFound />} />
           </Routes>

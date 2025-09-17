@@ -181,6 +181,35 @@ export class FileManager {
     }
   }
 
+  // Get clean live URL for sharing with clients
+  static async getLiveUrl(projectId: string): Promise<string | null> {
+    try {
+      // Get user's sequential ID
+      const { data: userData } = await supabase.auth.getUser();
+      if (!userData?.user?.id) return null;
+      
+      const { data: seqData } = await supabase
+        .from('user_sequences')
+        .select('sequential_id')
+        .eq('user_id', userData.user.id)
+        .maybeSingle();
+      
+      if (seqData?.sequential_id) {
+        // Return clean URL format: /userId/projectId
+        const baseUrl = window.location.origin;
+        return `${baseUrl}/${seqData.sequential_id}/${projectId}`;
+      }
+      
+      // Fallback to user ID prefix
+      const shortUserId = userData.user.id.substring(0, 8);
+      const baseUrl = window.location.origin;
+      return `${baseUrl}/${shortUserId}/${projectId}`;
+    } catch (error) {
+      console.error('Error getting live URL:', error);
+      return null;
+    }
+  }
+
   // Open preview using the renderer HTML that converts plain text to rendered HTML
   static async openPreview(projectId: string): Promise<void> {
     try {

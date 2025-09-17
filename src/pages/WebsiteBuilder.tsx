@@ -4,7 +4,7 @@ import { Button } from '@/components/ui/button';
 import { Textarea } from '@/components/ui/textarea';
 import { ResizablePanelGroup, ResizablePanel, ResizableHandle } from '@/components/ui/resizable';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
-import { ArrowLeft, Save, Settings, Files, Globe, Code2, Maximize, ExternalLink, X, Eye } from 'lucide-react';
+import { ArrowLeft, Save, Settings, Files, Globe, Code2, Maximize, ExternalLink, X, Eye, Link, Copy } from 'lucide-react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Separator } from '@/components/ui/separator';
 import { useProjects } from '@/hooks/useProjects';
@@ -368,14 +368,31 @@ const WebsiteBuilder = () => {
         </div>
         <div className="flex items-center gap-2">
           {currentProject && currentProject.id !== 'test-project' && (
-            <Button 
-              variant="outline" 
-              onClick={() => FileManager.openPreview(currentProject.id)} 
-              className="flex items-center gap-2"
-            >
-              <Eye className="h-4 w-4" />
-              Preview
-            </Button>
+            <>
+              <Button 
+                variant="outline" 
+                onClick={async () => {
+                  const liveUrl = await FileManager.getLiveUrl(currentProject.id);
+                  if (liveUrl) {
+                    navigator.clipboard.writeText(liveUrl);
+                    toast.success('Live URL copied to clipboard!');
+                  }
+                }} 
+                className="flex items-center gap-2"
+                title="Copy live URL for sharing"
+              >
+                <Link className="h-4 w-4" />
+                Live URL
+              </Button>
+              <Button 
+                variant="outline" 
+                onClick={() => FileManager.openPreview(currentProject.id)} 
+                className="flex items-center gap-2"
+              >
+                <Eye className="h-4 w-4" />
+                Preview
+              </Button>
+            </>
           )}
           <Button onClick={handleSave} disabled={isSaving} className="flex items-center gap-2">
             <Save className="h-4 w-4" />
