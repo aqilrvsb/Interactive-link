@@ -22,26 +22,43 @@ export class FileManager {
         ? `${sequentialId}/index.html`
         : `${projectId}/index.html`;
 
-      // Convert HTML string to Blob with proper MIME type for rendering
-      const htmlBlob = new Blob([htmlContent], { 
-        type: 'text/html; charset=utf-8' 
-      });
+      // ALWAYS DELETE OLD FILE FIRST (if it exists)
+      try {
+        console.log('Attempting to delete old file:', fileName);
+        const { error: deleteError } = await supabase.storage
+          .from('websites')
+          .remove([fileName]);
+        
+        if (deleteError) {
+          console.log('Delete error (file might not exist):', deleteError.message);
+        } else {
+          console.log('Old file deleted successfully');
+        }
+      } catch (err) {
+        // Ignore delete errors - file might not exist
+        console.log('Delete skipped:', err);
+      }
 
-      // Upload to Supabase Storage
+      // Small delay to ensure delete completes
+      await new Promise(resolve => setTimeout(resolve, 100));
+
+      // NOW CREATE NEW FILE - Upload as plain text with HTML content type
+      console.log('Uploading new file:', fileName);
       const { error: uploadError } = await supabase.storage
         .from('websites')
-        .upload(fileName, htmlBlob, {
-          upsert: true,
+        .upload(fileName, htmlContent, {
           contentType: 'text/html; charset=utf-8',
-          cacheControl: '3600'
+          cacheControl: 'no-cache, no-store, must-revalidate',
+          upsert: false // False because we already deleted
         });
 
       if (uploadError) {
         console.error('Storage upload error:', uploadError);
         
-        // Check if bucket exists
+        // Check if bucket doesn't exist
         if (uploadError.message?.includes('not found')) {
           // Try to create the bucket
+          console.log('Creating websites bucket...');
           const { error: createError } = await supabase.storage.createBucket('websites', {
             public: true,
             fileSizeLimit: 10485760, // 10MB
@@ -53,13 +70,14 @@ export class FileManager {
             return false;
           }
           
-          // Retry upload after creating bucket with Blob
+          // Retry upload after creating bucket
+          console.log('Retrying upload after bucket creation...');
           const { error: retryError } = await supabase.storage
             .from('websites')
-            .upload(fileName, htmlBlob, {
-              upsert: true,
+            .upload(fileName, htmlContent, {
               contentType: 'text/html; charset=utf-8',
-              cacheControl: '3600'
+              cacheControl: 'no-cache, no-store, must-revalidate',
+              upsert: false
             });
             
           if (retryError) {
@@ -71,20 +89,24 @@ export class FileManager {
         }
       }
 
-      // Store the file info in localStorage for quick access
+      // Get the public URL
       const publicUrl = supabase.storage
         .from('websites')
         .getPublicUrl(fileName).data.publicUrl;
       
+      // Add timestamp to URL to force fresh content
+      const freshUrl = `${publicUrl}?v=${Date.now()}`;
+      
+      // Store in localStorage for quick access
       localStorage.setItem(`project_file_${projectId}`, JSON.stringify({
         id: projectId,
         title,
         fileName,
-        publicUrl,
-        createdAt: new Date().toISOString()
+        publicUrl: freshUrl,
+        lastUpdated: new Date().toISOString()
       }));
       
-      console.log('File saved successfully:', publicUrl);
+      console.log('File saved successfully:', freshUrl);
       return true;
     } catch (error) {
       console.error('Error creating project file:', error);
@@ -95,19 +117,6 @@ export class FileManager {
   // Open preview using the Supabase Storage public URL
   static async openPreview(projectId: string): Promise<void> {
     try {
-      // First try to get from localStorage
-      const storedData = localStorage.getItem(`project_file_${projectId}`);
-      
-      if (storedData) {
-        const fileData = JSON.parse(storedData);
-        if (fileData.publicUrl) {
-          window.open(fileData.publicUrl, '_blank');
-          toast.success('Preview opened');
-          return;
-        }
-      }
-      
-      // If not in localStorage, try to get from Supabase directly
       // First check with project ID
       let fileName = `${projectId}/index.html`;
       let { data: publicUrlData } = supabase.storage
@@ -115,13 +124,11 @@ export class FileManager {
         .getPublicUrl(fileName);
       
       if (publicUrlData?.publicUrl) {
-        // Check if file actually exists
-        const response = await fetch(publicUrlData.publicUrl, { method: 'HEAD' });
-        if (response.ok) {
-          window.open(publicUrlData.publicUrl, '_blank');
-          toast.success('Preview opened');
-          return;
-        }
+        // Add timestamp to bypass browser cache
+        const freshUrl = `${publicUrlData.publicUrl}?v=${Date.now()}`;
+        window.open(freshUrl, '_blank');
+        toast.success('Preview opened with latest changes');
+        return;
       }
       
       // If not found, try to get user's sequential ID and use that path
@@ -131,7 +138,7 @@ export class FileManager {
           .from('user_sequences')
           .select('sequential_id')
           .eq('user_id', userData.user.id)
-          .single();
+          .maybeSingle();
         
         if (seqData?.sequential_id) {
           fileName = `${seqData.sequential_id}/index.html`;
@@ -140,8 +147,9 @@ export class FileManager {
             .getPublicUrl(fileName);
           
           if (seqUrlData?.publicUrl) {
-            window.open(seqUrlData.publicUrl, '_blank');
-            toast.success('Preview opened');
+            const freshUrl = `${seqUrlData.publicUrl}?v=${Date.now()}`;
+            window.open(freshUrl, '_blank');
+            toast.success('Preview opened with latest changes');
             return;
           }
         }
