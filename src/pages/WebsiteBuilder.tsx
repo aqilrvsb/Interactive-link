@@ -102,27 +102,35 @@ const WebsiteBuilder = () => {
       try {
         // If we have a projectId, load that specific project
         if (projectId) {
-          // Fetch fresh project data from database
-          await fetchProjects();
+          // Directly fetch this specific project from database
+          const { data: projectData, error } = await supabase
+            .from('projects')
+            .select('*')
+            .eq('id', projectId)
+            .single();
           
-          // Wait a bit for the projects to update
-          setTimeout(() => {
-            const project = projects.find(p => p.id === projectId);
-            if (project) {
-              setCurrentProject(project);
-              // Load from database - this is the source of truth for editing
-              if (project.code_content) {
-                setCode(project.code_content);
-              } else {
-                setCode(DEFAULT_HTML);
-              }
-            } else {
-              // Project not found, load default
-              setCode(DEFAULT_HTML);
-              toast.error('Project not found');
-            }
+          if (error) {
+            console.error('Error fetching project:', error);
+            toast.error('Failed to load project');
+            setCode(DEFAULT_HTML);
             setIsLoading(false);
-          }, 500);
+            return;
+          }
+          
+          if (projectData) {
+            setCurrentProject(projectData);
+            // Load from database - this is the source of truth for editing
+            if (projectData.code_content) {
+              setCode(projectData.code_content);
+            } else {
+              setCode(DEFAULT_HTML);
+            }
+          } else {
+            // Project not found, load default
+            setCode(DEFAULT_HTML);
+            toast.error('Project not found');
+          }
+          setIsLoading(false);
         } else {
           // No projectId, check for test project or load default
           const testCode = localStorage.getItem('test-project-code');
@@ -289,7 +297,7 @@ const WebsiteBuilder = () => {
               .from('user_sequences')
               .select('sequential_id')
               .eq('user_id', user.id)
-              .single();
+              .maybeSingle(); // Use maybeSingle() instead of single() to avoid 406 errors
             
             if (seqData?.sequential_id) {
               sequentialId = seqData.sequential_id;
