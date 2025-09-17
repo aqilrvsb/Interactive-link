@@ -4,7 +4,7 @@ import { supabase } from '@/integrations/supabase/client';
 import { Loader2 } from 'lucide-react';
 
 const LivePreview = () => {
-  const { userId, projectId } = useParams();
+  const { userId, projectId, projectName } = useParams();
   const [htmlContent, setHtmlContent] = useState<string>('');
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -18,7 +18,7 @@ const LivePreview = () => {
       }
 
       try {
-        console.log('Loading live preview:', { userId, projectId });
+        console.log('Loading live preview:', { userId, projectId, projectName });
         
         // First, try to fetch directly from storage (public access)
         // Try different file name patterns
@@ -105,7 +105,7 @@ const LivePreview = () => {
     };
 
     loadLivePreview();
-  }, [userId, projectId]);
+  }, [userId, projectId, projectName]);
 
   if (loading) {
     return (

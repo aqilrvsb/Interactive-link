@@ -184,6 +184,21 @@ export class FileManager {
   // Open preview using clean live URL format (public access)
   static async openPreview(projectId: string): Promise<void> {
     try {
+      // Get the project to get its title for the URL
+      const { data: project } = await supabase
+        .from('projects')
+        .select('title, user_id')
+        .eq('id', projectId)
+        .maybeSingle();
+      
+      if (!project) {
+        toast.error('Project not found');
+        return;
+      }
+      
+      // Generate slug from project title
+      const projectSlug = project.title.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '');
+      
       // Try to get user's sequential ID if logged in
       let userIdentifier: string = '';
       
@@ -200,23 +215,34 @@ export class FileManager {
         } else {
           userIdentifier = userData.user.id.substring(0, 8);
         }
+      } else if (project.user_id) {
+        // If not logged in, try to get sequential ID from project's user
+        const { data: seqData } = await supabase
+          .from('user_sequences')
+          .select('sequential_id')
+          .eq('user_id', project.user_id)
+          .maybeSingle();
+        
+        if (seqData?.sequential_id) {
+          userIdentifier = seqData.sequential_id.toString();
+        } else {
+          userIdentifier = project.user_id.substring(0, 8);
+        }
       }
       
-      // If no user, use a generic identifier or just projectId
-      if (!userIdentifier) {
-        userIdentifier = 'preview'; // Generic prefix for non-logged users
+      // If still no user identifier, use first 8 chars of project user_id
+      if (!userIdentifier && project.user_id) {
+        userIdentifier = project.user_id.substring(0, 8);
       }
       
-      // Open clean URL format: /userId/projectId
-      const cleanUrl = `/${userIdentifier}/${projectId}`;
+      // Open clean URL format: /userId/projectId/project-name
+      const cleanUrl = `/${userIdentifier}/${projectId}/${projectSlug}`;
       window.open(cleanUrl, '_blank');
       toast.success('Preview opened');
       
     } catch (error) {
       console.error('Error opening preview:', error);
-      // Even if error, try to open with generic URL
-      const cleanUrl = `/preview/${projectId}`;
-      window.open(cleanUrl, '_blank');
+      toast.error('Failed to open preview');
     }
   }
 
