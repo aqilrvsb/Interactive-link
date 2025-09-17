@@ -41,25 +41,7 @@ export const AuthProvider = ({ children }: AuthProviderProps) => {
   // Function to fetch user profile
   const fetchUserProfile = async (userId: string) => {
     try {
-      // First try to get from custom users table
-      const { data: userData, error: userError } = await supabase
-        .from('users')
-        .select('id, username, full_name')
-        .eq('id', userId)
-        .maybeSingle();
-      
-      if (userData && !userError) {
-        const userObj = {
-          id: userData.id,
-          username: userData.username,
-          full_name: userData.full_name
-        };
-        setUser(userObj);
-        localStorage.setItem('auth_user', JSON.stringify(userObj));
-        return userObj;
-      }
-
-      // If not in custom table, try auth.users
+      // First check if we have the user in auth.users with email
       const { data: { user: authUser }, error: authError } = await supabase.auth.getUser();
       
       if (authUser && !authError) {
@@ -133,20 +115,18 @@ export const AuthProvider = ({ children }: AuthProviderProps) => {
         
         console.log('Auth state changed:', event, session?.user?.id);
         
-        // Ignore initial session event if we already have a session
-        if (event === 'INITIAL_SESSION' && !session) {
-          return;
-        }
-        
+        // Always update the session state
         setSession(session);
         
         if (session?.user) {
           await fetchUserProfile(session.user.id);
-        } else if (event === 'SIGNED_OUT') {
+        } else {
+          // Explicitly set user to null when no session
           setUser(null);
           localStorage.removeItem('auth_user');
         }
         
+        // Always set loading to false after auth state change
         setLoading(false);
       }
     );
