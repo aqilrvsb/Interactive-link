@@ -181,12 +181,15 @@ export class FileManager {
     }
   }
 
-  // Get clean live URL for sharing with clients
-  static async getLiveUrl(projectId: string): Promise<string | null> {
+  // Open preview using clean live URL format
+  static async openPreview(projectId: string): Promise<void> {
     try {
-      // Get user's sequential ID
+      // Get user's sequential ID for clean URL
       const { data: userData } = await supabase.auth.getUser();
-      if (!userData?.user?.id) return null;
+      if (!userData?.user?.id) {
+        toast.error('Please log in to preview');
+        return;
+      }
       
       const { data: seqData } = await supabase
         .from('user_sequences')
@@ -194,75 +197,20 @@ export class FileManager {
         .eq('user_id', userData.user.id)
         .maybeSingle();
       
+      let userIdentifier: string;
+      
       if (seqData?.sequential_id) {
-        // Return clean URL format: /userId/projectId
-        const baseUrl = window.location.origin;
-        return `${baseUrl}/${seqData.sequential_id}/${projectId}`;
+        userIdentifier = seqData.sequential_id.toString();
+      } else {
+        // Fallback to first 8 chars of user ID
+        userIdentifier = userData.user.id.substring(0, 8);
       }
       
-      // Fallback to user ID prefix
-      const shortUserId = userData.user.id.substring(0, 8);
-      const baseUrl = window.location.origin;
-      return `${baseUrl}/${shortUserId}/${projectId}`;
-    } catch (error) {
-      console.error('Error getting live URL:', error);
-      return null;
-    }
-  }
-
-  // Open preview using the renderer HTML that converts plain text to rendered HTML
-  static async openPreview(projectId: string): Promise<void> {
-    try {
-      // Generate unique cache-busting parameters
-      const timestamp = Date.now();
-      const random = Math.random().toString(36).substring(7);
+      // Open clean URL format: /userId/projectId
+      const cleanUrl = `/${userIdentifier}/${projectId}`;
+      window.open(cleanUrl, '_blank');
+      toast.success('Preview opened');
       
-      // First check with project ID
-      let fileName = `${projectId}/index.html`;
-      let { data: publicUrlData } = supabase.storage
-        .from('websites')
-        .getPublicUrl(fileName);
-      
-      if (publicUrlData?.publicUrl) {
-        // Add aggressive cache-busting to the storage URL
-        const cacheBustedUrl = `${publicUrlData.publicUrl}?t=${timestamp}&r=${random}&nocache=true`;
-        
-        // Use the preview renderer with cache-busted URL
-        const rendererUrl = `/preview-renderer.html?url=${encodeURIComponent(cacheBustedUrl)}&t=${timestamp}&r=${random}`;
-        window.open(rendererUrl, '_blank');
-        toast.success('Preview opened with latest changes');
-        return;
-      }
-      
-      // If not found, try to get user's sequential ID and use that path
-      const { data: userData } = await supabase.auth.getUser();
-      if (userData?.user?.id) {
-        const { data: seqData } = await supabase
-          .from('user_sequences')
-          .select('sequential_id')
-          .eq('user_id', userData.user.id)
-          .maybeSingle();
-        
-        if (seqData?.sequential_id) {
-          fileName = `${seqData.sequential_id}/index.html`;
-          const { data: seqUrlData } = supabase.storage
-            .from('websites')
-            .getPublicUrl(fileName);
-          
-          if (seqUrlData?.publicUrl) {
-            // Add aggressive cache-busting to the storage URL
-            const cacheBustedUrl = `${seqUrlData.publicUrl}?t=${timestamp}&r=${random}&nocache=true`;
-            
-            // Use the preview renderer with cache-busted URL
-            const rendererUrl = `/preview-renderer.html?url=${encodeURIComponent(cacheBustedUrl)}&t=${timestamp}&r=${random}`;
-            window.open(rendererUrl, '_blank');
-            toast.success('Preview opened with latest changes');
-            return;
-          }
-        }
-      }
-      
-      toast.error('No preview available. Please save the project first.');
     } catch (error) {
       console.error('Error opening preview:', error);
       toast.error('Failed to open preview');

@@ -45,14 +45,25 @@ const LivePreview = () => {
 
         if (!project) {
           // Try fetching from storage as fallback
-          const fileName = `${projectId}/index.html`;
-          const { data: urlData } = supabase.storage
+          // Try with projectId first
+          let fileName = `${projectId}/index.html`;
+          let { data: urlData } = supabase.storage
             .from('websites')
             .getPublicUrl(fileName);
             
+          // If not found with projectId, try with userId
+          if (!urlData?.publicUrl) {
+            fileName = `${userId}/index.html`;
+            urlData = supabase.storage
+              .from('websites')
+              .getPublicUrl(fileName);
+          }
+            
           if (urlData?.publicUrl) {
-            // Add cache-busting
-            const cacheBustedUrl = `${urlData.publicUrl}?t=${Date.now()}&r=${Math.random().toString(36).substring(7)}`;
+            // Add aggressive cache-busting
+            const timestamp = Date.now();
+            const random = Math.random().toString(36).substring(7);
+            const cacheBustedUrl = `${urlData.publicUrl}?t=${timestamp}&r=${random}&nocache=true`;
             
             const response = await fetch(cacheBustedUrl, {
               cache: 'no-store',
