@@ -153,13 +153,15 @@ export class FileManager {
         }
       }
 
-      // Get the public URL
+      // Get the public URL with aggressive cache busting
       const publicUrl = supabase.storage
         .from('websites')
         .getPublicUrl(fileName).data.publicUrl;
       
-      // Add timestamp to URL to force fresh content
-      const freshUrl = `${publicUrl}?v=${Date.now()}`;
+      // Add multiple cache-busting parameters
+      const timestamp = Date.now();
+      const random = Math.random().toString(36).substring(7);
+      const freshUrl = `${publicUrl}?t=${timestamp}&r=${random}&nocache=true`;
       
       // Store in localStorage for quick access
       localStorage.setItem(`project_file_${projectId}`, JSON.stringify({
@@ -167,10 +169,11 @@ export class FileManager {
         title,
         fileName,
         publicUrl: freshUrl,
+        timestamp,
         lastUpdated: new Date().toISOString()
       }));
       
-      console.log('File saved successfully:', freshUrl);
+      console.log('File saved successfully with cache bust:', freshUrl);
       return true;
     } catch (error) {
       console.error('Error creating project file:', error);
@@ -181,6 +184,10 @@ export class FileManager {
   // Open preview using the renderer HTML that converts plain text to rendered HTML
   static async openPreview(projectId: string): Promise<void> {
     try {
+      // Generate unique cache-busting parameters
+      const timestamp = Date.now();
+      const random = Math.random().toString(36).substring(7);
+      
       // First check with project ID
       let fileName = `${projectId}/index.html`;
       let { data: publicUrlData } = supabase.storage
@@ -188,8 +195,11 @@ export class FileManager {
         .getPublicUrl(fileName);
       
       if (publicUrlData?.publicUrl) {
-        // Use the preview renderer to display the HTML properly
-        const rendererUrl = `/preview-renderer.html?url=${encodeURIComponent(publicUrlData.publicUrl)}&project=${projectId}&v=${Date.now()}`;
+        // Add aggressive cache-busting to the storage URL
+        const cacheBustedUrl = `${publicUrlData.publicUrl}?t=${timestamp}&r=${random}&nocache=true`;
+        
+        // Use the preview renderer with cache-busted URL
+        const rendererUrl = `/preview-renderer.html?url=${encodeURIComponent(cacheBustedUrl)}&t=${timestamp}&r=${random}`;
         window.open(rendererUrl, '_blank');
         toast.success('Preview opened with latest changes');
         return;
@@ -211,8 +221,11 @@ export class FileManager {
             .getPublicUrl(fileName);
           
           if (seqUrlData?.publicUrl) {
-            // Use the preview renderer to display the HTML properly
-            const rendererUrl = `/preview-renderer.html?url=${encodeURIComponent(seqUrlData.publicUrl)}&project=${projectId}&v=${Date.now()}`;
+            // Add aggressive cache-busting to the storage URL
+            const cacheBustedUrl = `${seqUrlData.publicUrl}?t=${timestamp}&r=${random}&nocache=true`;
+            
+            // Use the preview renderer with cache-busted URL
+            const rendererUrl = `/preview-renderer.html?url=${encodeURIComponent(cacheBustedUrl)}&t=${timestamp}&r=${random}`;
             window.open(rendererUrl, '_blank');
             toast.success('Preview opened with latest changes');
             return;
