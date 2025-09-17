@@ -269,7 +269,7 @@ const WebsiteBuilder = () => {
           description: 'A website built with the code editor',
           code_content: code,
           language: 'html',
-          is_public: false,
+          is_public: true,  // Make public by default for sharing
         });
         
         if (!project) {
@@ -283,6 +283,7 @@ const WebsiteBuilder = () => {
         // Update existing project in database
         project = await updateProject(project.id, {
           code_content: code,
+          is_public: true,  // Make public for sharing
           updated_at: new Date().toISOString()
         });
       }

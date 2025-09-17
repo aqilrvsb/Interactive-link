@@ -20,47 +20,45 @@ const LivePreview = () => {
       try {
         console.log('Loading live preview:', { userId, projectId });
         
-        // Get the actual user ID from sequential ID if needed
-        let actualUserId = userId;
+        // First, try to fetch directly from storage (public access)
+        // Try different file name patterns
+        let htmlContent = null;
         
-        // If userId is a number (sequential ID)
-        if (/^\d+$/.test(userId)) {
-          const { data: userData } = await supabase
-            .from('user_sequences')
-            .select('user_id')
-            .eq('sequential_id', parseInt(userId))
-            .maybeSingle();
-            
-          if (userData?.user_id) {
-            actualUserId = userData.user_id;
+        // Pattern 1: projectId/index.html
+        let fileName = `${projectId}/index.html`;
+        let { data: urlData } = supabase.storage
+          .from('websites')
+          .getPublicUrl(fileName);
+          
+        if (urlData?.publicUrl) {
+          const timestamp = Date.now();
+          const random = Math.random().toString(36).substring(7);
+          const cacheBustedUrl = `${urlData.publicUrl}?t=${timestamp}&r=${random}&nocache=true`;
+          
+          const response = await fetch(cacheBustedUrl, {
+            cache: 'no-store',
+            headers: {
+              'Cache-Control': 'no-cache, no-store, must-revalidate',
+              'Pragma': 'no-cache'
+            }
+          });
+          
+          if (response.ok) {
+            htmlContent = await response.text();
+            setHtmlContent(htmlContent);
+            setLoading(false);
+            return;
           }
         }
-
-        // Get the project directly by ID
-        const { data: project } = await supabase
-          .from('projects')
-          .select('code_content, title, is_public, user_id')
-          .eq('id', projectId)
-          .maybeSingle();
-
-        if (!project) {
-          // Try fetching from storage as fallback
-          // Try with projectId first
-          let fileName = `${projectId}/index.html`;
-          let { data: urlData } = supabase.storage
+        
+        // Pattern 2: userId/index.html (if userId is sequential ID)
+        if (/^\d+$/.test(userId)) {
+          fileName = `${userId}/index.html`;
+          urlData = supabase.storage
             .from('websites')
             .getPublicUrl(fileName);
             
-          // If not found with projectId, try with userId
-          if (!urlData?.publicUrl) {
-            fileName = `${userId}/index.html`;
-            urlData = supabase.storage
-              .from('websites')
-              .getPublicUrl(fileName);
-          }
-            
           if (urlData?.publicUrl) {
-            // Add aggressive cache-busting
             const timestamp = Date.now();
             const random = Math.random().toString(36).substring(7);
             const cacheBustedUrl = `${urlData.publicUrl}?t=${timestamp}&r=${random}&nocache=true`;
@@ -74,30 +72,28 @@ const LivePreview = () => {
             });
             
             if (response.ok) {
-              const content = await response.text();
-              setHtmlContent(content);
-            } else {
-              setError('Project not found');
-            }
-          } else {
-            setError('Project not found');
-          }
-        } else {
-          // Check if public or owner
-          if (!project.is_public) {
-            const { data: { user } } = await supabase.auth.getUser();
-            if (!user || user.id !== project.user_id) {
-              setError('This project is private');
+              htmlContent = await response.text();
+              setHtmlContent(htmlContent);
               setLoading(false);
               return;
             }
           }
-          
-          // Use project content
-          if (project.code_content) {
+        }
+        
+        // If still no content, try database (public projects only)
+        if (!htmlContent) {
+          // No need to check auth - just get public projects
+          const { data: project } = await supabase
+            .from('projects')
+            .select('code_content, title, is_public')
+            .eq('id', projectId)
+            .eq('is_public', true) // Only public projects
+            .maybeSingle();
+
+          if (project?.code_content) {
             setHtmlContent(project.code_content);
           } else {
-            setError('Project has no content');
+            setError('Project not found or is private');
           }
         }
       } catch (err) {

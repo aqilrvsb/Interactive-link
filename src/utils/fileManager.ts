@@ -181,29 +181,30 @@ export class FileManager {
     }
   }
 
-  // Open preview using clean live URL format
+  // Open preview using clean live URL format (public access)
   static async openPreview(projectId: string): Promise<void> {
     try {
-      // Get user's sequential ID for clean URL
+      // Try to get user's sequential ID if logged in
+      let userIdentifier: string = '';
+      
       const { data: userData } = await supabase.auth.getUser();
-      if (!userData?.user?.id) {
-        toast.error('Please log in to preview');
-        return;
+      if (userData?.user?.id) {
+        const { data: seqData } = await supabase
+          .from('user_sequences')
+          .select('sequential_id')
+          .eq('user_id', userData.user.id)
+          .maybeSingle();
+        
+        if (seqData?.sequential_id) {
+          userIdentifier = seqData.sequential_id.toString();
+        } else {
+          userIdentifier = userData.user.id.substring(0, 8);
+        }
       }
       
-      const { data: seqData } = await supabase
-        .from('user_sequences')
-        .select('sequential_id')
-        .eq('user_id', userData.user.id)
-        .maybeSingle();
-      
-      let userIdentifier: string;
-      
-      if (seqData?.sequential_id) {
-        userIdentifier = seqData.sequential_id.toString();
-      } else {
-        // Fallback to first 8 chars of user ID
-        userIdentifier = userData.user.id.substring(0, 8);
+      // If no user, use a generic identifier or just projectId
+      if (!userIdentifier) {
+        userIdentifier = 'preview'; // Generic prefix for non-logged users
       }
       
       // Open clean URL format: /userId/projectId
@@ -213,7 +214,9 @@ export class FileManager {
       
     } catch (error) {
       console.error('Error opening preview:', error);
-      toast.error('Failed to open preview');
+      // Even if error, try to open with generic URL
+      const cleanUrl = `/preview/${projectId}`;
+      window.open(cleanUrl, '_blank');
     }
   }
 

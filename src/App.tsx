@@ -39,6 +39,7 @@ const App = () => (
             {/* Clean URLs for live preview - for clients */}
             <Route path="/:userId/:projectId" element={<LivePreview />} />
             <Route path="/live/:userId/:projectId" element={<LivePreview />} />
+            <Route path="/preview/:projectId" element={<LivePreview />} />
             {/* ADD ALL CUSTOM ROUTES ABOVE THE CATCH-ALL "*" ROUTE */}
             <Route path="*" element={<NotFound />} />
           </Routes>
