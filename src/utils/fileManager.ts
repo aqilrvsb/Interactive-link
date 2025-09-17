@@ -42,13 +42,19 @@ export class FileManager {
       // Small delay to ensure delete completes
       await new Promise(resolve => setTimeout(resolve, 100));
 
-      // NOW CREATE NEW FILE - Upload as plain text with HTML content type
+      // Create a proper File object with HTML mime type
+      const file = new File([htmlContent], 'index.html', { 
+        type: 'text/html',
+        lastModified: Date.now()
+      });
+
+      // NOW CREATE NEW FILE - Upload as File object
       console.log('Uploading new file:', fileName);
       const { error: uploadError } = await supabase.storage
         .from('websites')
-        .upload(fileName, htmlContent, {
-          contentType: 'text/html; charset=utf-8',
-          cacheControl: 'no-cache, no-store, must-revalidate',
+        .upload(fileName, file, {
+          contentType: 'text/html',
+          cacheControl: 'no-cache, max-age=0',
           upsert: false // False because we already deleted
         });
 
@@ -74,9 +80,9 @@ export class FileManager {
           console.log('Retrying upload after bucket creation...');
           const { error: retryError } = await supabase.storage
             .from('websites')
-            .upload(fileName, htmlContent, {
-              contentType: 'text/html; charset=utf-8',
-              cacheControl: 'no-cache, no-store, must-revalidate',
+            .upload(fileName, file, {
+              contentType: 'text/html',
+              cacheControl: 'no-cache, max-age=0',
               upsert: false
             });
             
