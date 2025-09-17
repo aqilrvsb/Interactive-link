@@ -87,6 +87,14 @@ export const AuthProvider = ({ children }: AuthProviderProps) => {
       try {
         console.log('Initializing auth...');
         
+        // Set a timeout to prevent infinite loading
+        const timeoutId = setTimeout(() => {
+          if (mounted) {
+            console.log('Auth timeout - setting loading to false');
+            setLoading(false);
+          }
+        }, 3000); // 3 second timeout
+        
         // First check Supabase auth session
         const { data: { session: currentSession }, error } = await supabase.auth.getSession();
         
@@ -99,26 +107,10 @@ export const AuthProvider = ({ children }: AuthProviderProps) => {
           setSession(currentSession);
           await fetchUserProfile(currentSession.user.id);
         } else {
-          console.log('No active session found, checking localStorage...');
-          // Check localStorage as fallback
-          const storedUser = localStorage.getItem('auth_user');
-          if (storedUser && mounted) {
-            try {
-              const parsedUser = JSON.parse(storedUser);
-              console.log('Found stored user:', parsedUser);
-              setUser(parsedUser);
-              
-              // Try to restore session from Supabase
-              const { data: { session: restoredSession } } = await supabase.auth.getSession();
-              if (restoredSession) {
-                setSession(restoredSession);
-              }
-            } catch (error) {
-              console.error('Error parsing stored user:', error);
-              localStorage.removeItem('auth_user');
-            }
-          }
+          console.log('No active session found');
         }
+        
+        clearTimeout(timeoutId);
       } catch (error) {
         console.error('Error initializing auth:', error);
       } finally {

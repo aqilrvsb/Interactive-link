@@ -16,30 +16,12 @@ import { FileManager } from '@/utils/fileManager';
 import { toast } from 'sonner';
 
 const Dashboard = () => {
-  const { user, signOut, loading: authLoading } = useAuth();
-  const { projects, loading: projectsLoading, deleteProject, updateProject } = useProjects();
+  const { user, signOut } = useAuth();
+  const { projects, loading, deleteProject, updateProject } = useProjects();
   const navigate = useNavigate();
   const [editingProject, setEditingProject] = useState<any>(null);
   const [newTitle, setNewTitle] = useState('');
   const [isRenaming, setIsRenaming] = useState(false);
-  
-  // Show loading state while auth is initializing
-  if (authLoading) {
-    return (
-      <div className="min-h-screen bg-background flex items-center justify-center">
-        <div className="text-center">
-          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-gray-900 mx-auto"></div>
-          <p className="mt-4">Loading...</p>
-        </div>
-      </div>
-    );
-  }
-  
-  // Redirect to auth if not logged in
-  if (!authLoading && !user) {
-    navigate('/auth');
-    return null;
-  }
 
   const handleSignOut = async () => {
     await signOut();
