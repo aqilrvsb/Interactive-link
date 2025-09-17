@@ -16,22 +16,40 @@ import { FileManager } from '@/utils/fileManager';
 import { toast } from 'sonner';
 
 const Dashboard = () => {
-  const { user, signOut } = useAuth();
-  const { projects, loading, deleteProject, updateProject } = useProjects();
+  const { user, signOut, loading: authLoading } = useAuth();
+  const { projects, loading: projectsLoading, deleteProject, updateProject } = useProjects();
   const navigate = useNavigate();
   const [editingProject, setEditingProject] = useState<any>(null);
   const [newTitle, setNewTitle] = useState('');
   const [isRenaming, setIsRenaming] = useState(false);
+  
+  // Show loading state while auth is initializing
+  if (authLoading) {
+    return (
+      <div className="min-h-screen bg-background flex items-center justify-center">
+        <div className="text-center">
+          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-gray-900 mx-auto"></div>
+          <p className="mt-4">Loading...</p>
+        </div>
+      </div>
+    );
+  }
+  
+  // Redirect to auth if not logged in
+  if (!authLoading && !user) {
+    navigate('/auth');
+    return null;
+  }
 
   const handleSignOut = async () => {
     await signOut();
     navigate('/');
   };
 
-  const handleDeleteProject = async (id: string) => {
+  const handleDeleteProject = async (id: number) => {
     if (window.confirm('Are you sure you want to delete this project? This will also delete the associated HTML file.')) {
       // Delete the file first
-      await FileManager.deleteProjectFile(id, user?.id);
+      await FileManager.deleteProjectFile(id.toString(), user?.id);
       // Then delete from database
       await deleteProject(id);
       toast.success('Project and associated files deleted successfully');
