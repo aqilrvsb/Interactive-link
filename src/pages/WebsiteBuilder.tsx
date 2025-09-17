@@ -17,15 +17,7 @@ import { DomainManagement } from '@/components/website-builder/DomainManagement'
 import { FileManager } from '@/utils/fileManager';
 import { toast } from 'sonner';
 
-const WebsiteBuilder = () => {
-  const navigate = useNavigate();
-  const { projectId } = useParams();
-  const iframeRef = useRef<HTMLIFrameElement>(null);
-  const { user } = useAuth();
-  const { projects, createProject, updateProject } = useProjects();
-  const { createVersion } = useSiteVersions(projectId);
-
-  const [code, setCode] = useState(`<!DOCTYPE html>
+const DEFAULT_HTML = `<!DOCTYPE html>
 <html lang="en">
 <head>
     <meta charset="UTF-8">
@@ -84,37 +76,80 @@ const WebsiteBuilder = () => {
         console.log('Website loaded successfully!');
     </script>
 </body>
-</html>`);
+</html>`;
+
+const WebsiteBuilder = () => {
+  const navigate = useNavigate();
+  const { projectId } = useParams();
+  const iframeRef = useRef<HTMLIFrameElement>(null);
+  const { user } = useAuth();
+  const { projects, createProject, updateProject, fetchProjects } = useProjects();
+  const { createVersion } = useSiteVersions(projectId);
+
+  // Initialize with empty string, will load actual content in useEffect
+  const [code, setCode] = useState('');
   const [isSaving, setIsSaving] = useState(false);
   const [currentProject, setCurrentProject] = useState<any>(null);
   const [isFullPreview, setIsFullPreview] = useState(false);
+  const [isLoading, setIsLoading] = useState(true);
   const fullPreviewIframeRef = useRef<HTMLIFrameElement>(null);
 
-  // Load project if projectId is provided
+  // Load project on mount and when projectId changes
   useEffect(() => {
-    if (projectId && projects.length > 0) {
-      const project = projects.find(p => p.id === projectId);
-      if (project && project.code_content) {
-        setCurrentProject(project);
-        setCode(project.code_content);
+    const loadProject = async () => {
+      setIsLoading(true);
+      
+      try {
+        // If we have a projectId, load that specific project
+        if (projectId) {
+          // Fetch fresh project data from database
+          await fetchProjects();
+          
+          // Wait a bit for the projects to update
+          setTimeout(() => {
+            const project = projects.find(p => p.id === projectId);
+            if (project) {
+              setCurrentProject(project);
+              // Load from database - this is the source of truth for editing
+              if (project.code_content) {
+                setCode(project.code_content);
+              } else {
+                setCode(DEFAULT_HTML);
+              }
+            } else {
+              // Project not found, load default
+              setCode(DEFAULT_HTML);
+              toast.error('Project not found');
+            }
+            setIsLoading(false);
+          }, 500);
+        } else {
+          // No projectId, check for test project or load default
+          const testCode = localStorage.getItem('test-project-code');
+          if (testCode) {
+            setCode(testCode);
+            setCurrentProject({
+              id: 'test-project',
+              title: 'Test Project',
+              code_content: testCode,
+              created_at: new Date().toISOString()
+            });
+          } else {
+            setCode(DEFAULT_HTML);
+          }
+          setIsLoading(false);
+        }
+      } catch (error) {
+        console.error('Error loading project:', error);
+        setCode(DEFAULT_HTML);
+        setIsLoading(false);
       }
-    } else if (!user) {
-      // Load test project from localStorage if not logged in
-      const testCode = localStorage.getItem('test-project-code');
-      if (testCode) {
-        setCode(testCode);
-        setCurrentProject({
-          id: 'test-project',
-          title: 'Test Project',
-          code_content: testCode,
-          created_at: new Date().toISOString()
-        });
-      }
-    }
-  }, [projectId, projects, user]);
+    };
+
+    loadProject();
+  }, [projectId]); // Remove projects dependency to avoid infinite loop
 
   const processCode = () => {
-    // Return the code as-is - it can be any format (HTML, React JSX, etc.)
     return code;
   };
 
@@ -137,7 +172,6 @@ const WebsiteBuilder = () => {
     const blob = new Blob([processedCode], { type: 'text/html' });
     const url = URL.createObjectURL(blob);
     window.open(url, '_blank');
-    // Clean up the URL object after a short delay
     setTimeout(() => URL.revokeObjectURL(url), 1000);
   };
 
@@ -148,7 +182,6 @@ const WebsiteBuilder = () => {
     }
 
     if (currentProject.id === 'test-project') {
-      // Test mode - use direct file URL that FileManager creates
       const fileUrl = FileManager.getProjectFileUrl(currentProject.id);
       const websiteWindow = window.open(fileUrl, '_blank', 'toolbar=yes,scrollbars=yes,resizable=yes,width=1200,height=800');
       
@@ -159,7 +192,6 @@ const WebsiteBuilder = () => {
       }
     } else {
       try {
-        // For real projects, use the Supabase public URL
         const { data: publicData } = supabase.storage
           .from('websites')
           .getPublicUrl(`${currentProject.id}/index.html`);
@@ -171,28 +203,31 @@ const WebsiteBuilder = () => {
         }
 
         const websiteWindow = window.open(publicUrl, '_blank', 'toolbar=yes,scrollbars=yes,resizable=yes,width=1200,height=800');
+        
         if (websiteWindow) {
-          toast.success('Website opened from Supabase Storage!');
+          toast.success('Website opened in a new window!');
         } else {
           toast.error('Please allow pop-ups to use Website Mode');
         }
       } catch (error) {
         console.error('Error opening website mode:', error);
-        toast.error('Failed to open website mode');
+        toast.error('Failed to open website mode. Please try again.');
       }
     }
   };
 
-  // Update preview when code changes
+  // Update preview when code changes (debounced)
   useEffect(() => {
-    const timeoutId = setTimeout(updatePreview, 300);
+    const timeoutId = setTimeout(() => {
+      updatePreview();
+    }, 500);
     return () => clearTimeout(timeoutId);
   }, [code]);
 
   // Handle ESC key for full preview mode
   useEffect(() => {
-    const handleEscKey = (event: KeyboardEvent) => {
-      if (event.key === 'Escape' && isFullPreview) {
+    const handleEscKey = (e: KeyboardEvent) => {
+      if (e.key === 'Escape' && isFullPreview) {
         setIsFullPreview(false);
       }
     };
@@ -200,8 +235,6 @@ const WebsiteBuilder = () => {
     if (isFullPreview) {
       document.addEventListener('keydown', handleEscKey);
       document.body.style.overflow = 'hidden';
-    } else {
-      document.body.style.overflow = 'unset';
     }
 
     return () => {
@@ -235,20 +268,49 @@ const WebsiteBuilder = () => {
           throw new Error('Failed to create project');
         }
         setCurrentProject(project);
+        
+        // Navigate to the new project URL
+        navigate(`/website-builder/${project.id}`);
       } else {
+        // Update existing project in database
         project = await updateProject(project.id, {
           code_content: code,
           updated_at: new Date().toISOString()
         });
       }
 
-      // Simply save the HTML file for preview
+      // Save the HTML file to storage for preview (with proper Blob)
       if (project) {
-        await FileManager.createProjectFile(
+        // Get user's sequential ID if available
+        let sequentialId = null;
+        if (user?.id) {
+          try {
+            const { data: seqData } = await supabase
+              .from('user_sequences')
+              .select('sequential_id')
+              .eq('user_id', user.id)
+              .single();
+            
+            if (seqData?.sequential_id) {
+              sequentialId = seqData.sequential_id;
+            }
+          } catch (err) {
+            console.log('No sequential ID found');
+          }
+        }
+
+        // Save to storage with proper HTML Blob
+        const saved = await FileManager.createProjectFile(
           project.id,
           project.title,
-          code
+          code,
+          user?.id,
+          sequentialId
         );
+        
+        if (saved) {
+          console.log('File saved to storage successfully');
+        }
       }
 
       toast.success('Project saved successfully!');
@@ -262,150 +324,26 @@ const WebsiteBuilder = () => {
   };
 
   const handleQuickSave = async () => {
-    if (!code.trim()) {
-      toast.error('Please add some code before saving');
-      return;
-    }
-
-    setIsSaving(true);
-    try {
-      const processedCode = processCode();
-
-      // Always try to save to database if we have any user context
-      let project = currentProject;
-
-      if (!project || project.id === 'test-project') {
-        // Create new project - use the current title or generate one
-        const title = currentProject?.title || `Website - ${new Date().toLocaleDateString()}`;
-        
-        // Make sure we have a user ID to save with
-        const { data: userData } = await supabase.auth.getUser();
-        const userId = user?.id || userData?.user?.id;
-        
-        if (!userId) {
-          // Fallback to test mode if no user
-          const testProject = {
-            id: 'test-project-' + Date.now(),
-            title,
-            code_content: code,
-            created_at: new Date().toISOString()
-          };
-          localStorage.setItem('test-project-code', code);
-          setCurrentProject(testProject);
-          toast.success('Code saved locally for testing! Please login to save permanently.');
-          updatePreview();
-          setIsSaving(false);
-          return;
-        }
-
-        // Create project in database
-        project = await createProject({
-          title,
-          description: 'A website built with the code editor',
-          code_content: code,
-          language: 'html',
-          is_public: false,
-        });
-        
-        if (!project) {
-          throw new Error('Failed to create project');
-        }
-        
-        setCurrentProject(project);
-      } else {
-        // Update existing project
-        project = await updateProject(project.id, {
-          code_content: code,
-          updated_at: new Date().toISOString()
-        });
-      }
-
-        // Save HTML file using FileManager for proper file creation and preview
-        if (project) {
-          // Get user ID from multiple sources
-          const { data: authData } = await supabase.auth.getUser();
-          const userId = user?.id || authData?.user?.id;
-          
-          if (userId) {
-            // Get the user's sequential ID from Supabase
-            let sequentialId = null;
-            try {
-              const { data: seqData, error: seqError } = await supabase
-                .from('user_sequences')
-                .select('sequential_id')
-                .eq('user_id', userId)
-                .single();
-              
-              if (seqData && !seqError) {
-                sequentialId = seqData.sequential_id;
-                console.log('User sequential ID retrieved:', sequentialId);
-              } else {
-                console.log('Could not fetch sequential ID:', seqError);
-                // Try to get from users_with_sequential_ids view
-                const { data: viewData } = await supabase
-                  .from('users_with_sequential_ids')
-                  .select('sequential_id')
-                  .eq('user_id', userId)
-                  .single();
-                
-                if (viewData) {
-                  sequentialId = viewData.sequential_id;
-                  console.log('Sequential ID from view:', sequentialId);
-                }
-              }
-            } catch (err) {
-              console.error('Error fetching sequential ID:', err);
-            }
-
-            // Save with sequential ID - this handles everything including Supabase storage
-            const saveSuccess = await FileManager.createProjectFile(
-              project.id, 
-              project.title, 
-              processedCode,
-              userId,
-              sequentialId // Pass sequential ID
-            );
-            
-            if (saveSuccess) {
-              console.log('Project file created successfully with sequential ID:', sequentialId);
-              // The FileManager already saves the public URL, no need to duplicate
-            } else {
-              console.error('Failed to create project file');
-            }
-          }
-        }
-
-        // Create a new version
-        try {
-          await createVersion({
-            project_id: project.id,
-            html_content: processedCode,
-            css_content: null,
-            js_content: null,
-            assets: []
-          });
-        } catch (versionError) {
-          console.error('Version creation error:', versionError);
-          // Don't show error toast since the main save succeeded
-        }
-
-        toast.success('Project saved successfully!');
-        // Auto-run the saved HTML in preview
-        updatePreview();
-
-    } catch (error) {
-      console.error('Error saving:', error);
-      toast.error('Failed to save project. Please try again.');
-    } finally {
-      setIsSaving(false);
-    }
+    // Just call handleSave for now
+    await handleSave();
   };
 
   const handleEditVersion = (version: SiteVersion) => {
-    // Load version content into editor
     setCode(version.html_content);
     toast.success(`Loaded version ${version.version_number} for editing`);
   };
+
+  // Show loading state
+  if (isLoading) {
+    return (
+      <div className="h-screen flex items-center justify-center">
+        <div className="text-center">
+          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-primary mx-auto"></div>
+          <p className="mt-4 text-muted-foreground">Loading project...</p>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="h-screen flex flex-col bg-background">
@@ -415,7 +353,7 @@ const WebsiteBuilder = () => {
             <ArrowLeft className="h-4 w-4 mr-2" />
             Dashboard
           </Button>
-          <h1 className="text-lg font-semibold flex items-center gap-2">
+          <h1 className="text-xl font-semibold flex items-center gap-2">
             <Code2 className="h-5 w-5" />
             Code Editor
           </h1>
@@ -466,101 +404,108 @@ const WebsiteBuilder = () => {
           <ResizablePanel defaultSize={70} minSize={30}>
             <Tabs defaultValue="preview" className="h-full flex flex-col">
               <div className="border-b px-4 py-2">
-                <TabsList className="grid w-full max-w-md grid-cols-2">
-                  <TabsTrigger value="preview">Preview</TabsTrigger>
-                  <TabsTrigger value="domains">Domains</TabsTrigger>
+                <TabsList className="h-9">
+                  <TabsTrigger value="preview" className="text-xs">
+                    <Eye className="h-3 w-3 mr-1" />
+                    Live Preview
+                  </TabsTrigger>
+                  <TabsTrigger value="files" className="text-xs">
+                    <Files className="h-3 w-3 mr-1" />
+                    Files
+                  </TabsTrigger>
+                  <TabsTrigger value="domains" className="text-xs">
+                    <Globe className="h-3 w-3 mr-1" />
+                    Domains
+                  </TabsTrigger>
+                  <TabsTrigger value="settings" className="text-xs">
+                    <Settings className="h-3 w-3 mr-1" />
+                    Settings
+                  </TabsTrigger>
                 </TabsList>
               </div>
 
-              <TabsContent value="preview" className="flex-1 p-0 m-0 h-full">
-                <Card className="h-full flex flex-col">
-                  <CardHeader className="flex-none pb-2 px-3 py-2">
-                    <div className="flex items-center justify-between">
-                      <CardTitle className="text-sm flex items-center gap-2">
-                        <Globe className="h-3 w-3" />
-                        Live Preview
-                      </CardTitle>
-                      <div className="flex items-center gap-1">
-                        <Button
-                          variant="ghost"
-                          size="sm"
-                          onClick={openInWebsiteMode}
-                          className="h-7 px-2 text-xs"
-                          title="Open as Website"
-                        >
-                          <Globe className="h-3 w-3 mr-1" />
-                          Website
-                        </Button>
-                        <Button
-                          variant="ghost"
-                          size="sm"
-                          onClick={openInNewTab}
-                          className="h-7 w-7 p-0"
-                          title="Open in new tab"
-                        >
-                          <ExternalLink className="h-3 w-3" />
-                        </Button>
-                        <Button
-                          variant="ghost"
-                          size="sm"
-                          onClick={() => setIsFullPreview(true)}
-                          className="h-7 w-7 p-0"
-                          title="Full Preview"
-                        >
-                          <Maximize className="h-3 w-3" />
-                        </Button>
-                      </div>
-                    </div>
-                  </CardHeader>
-                  <CardContent className="flex-1 min-h-0 overflow-hidden p-2">
-                    <div className="h-full border rounded-lg overflow-hidden">
-                      <iframe
-                        ref={iframeRef}
-                        className="w-full h-full block border-0"
-                        title="Code Preview"
-                        sandbox="allow-scripts allow-same-origin allow-forms"
-                      />
-                    </div>
-                  </CardContent>
-                </Card>
+              <TabsContent value="preview" className="flex-1 relative overflow-hidden m-0">
+                <div className="absolute top-2 right-2 z-10 flex gap-2">
+                  <Button
+                    size="sm"
+                    variant="secondary"
+                    onClick={() => setIsFullPreview(true)}
+                    className="shadow-md"
+                  >
+                    <Maximize className="h-4 w-4" />
+                  </Button>
+                </div>
+                <iframe
+                  ref={iframeRef}
+                  className="w-full h-full border-0"
+                  title="Preview"
+                  sandbox="allow-scripts allow-forms allow-popups allow-same-origin"
+                />
               </TabsContent>
 
-              <TabsContent value="domains" className="flex-1 p-4 m-0 overflow-auto">
-                {currentProject ? (
+              <TabsContent value="files" className="flex-1 p-4 overflow-auto m-0">
+                {currentProject && currentProject.id !== 'test-project' ? (
+                  <ProjectFilesView projectId={currentProject.id} />
+                ) : (
+                  <Card>
+                    <CardContent className="pt-6">
+                      <p className="text-sm text-muted-foreground text-center">
+                        Save your project to manage files
+                      </p>
+                    </CardContent>
+                  </Card>
+                )}
+              </TabsContent>
+
+              <TabsContent value="domains" className="flex-1 p-4 overflow-auto m-0">
+                {currentProject && currentProject.id !== 'test-project' ? (
                   <DomainManagement projectId={currentProject.id} />
                 ) : (
-                  <div className="flex items-center justify-center h-full text-center">
-                    <div className="text-muted-foreground">
-                      <Globe className="h-12 w-12 mx-auto mb-4 opacity-50" />
-                      <div>Save your project first to manage domains</div>
-                    </div>
-                  </div>
+                  <Card>
+                    <CardContent className="pt-6">
+                      <p className="text-sm text-muted-foreground text-center">
+                        Save your project to manage domains
+                      </p>
+                    </CardContent>
+                  </Card>
                 )}
+              </TabsContent>
+
+              <TabsContent value="settings" className="flex-1 p-4 overflow-auto m-0">
+                <SupabaseSettings />
               </TabsContent>
             </Tabs>
           </ResizablePanel>
         </ResizablePanelGroup>
       </div>
 
-      {/* Full Preview Overlay */}
+      {/* Full Screen Preview Modal */}
       {isFullPreview && (
-        <div className="fixed inset-0 z-50 bg-black">
-          <div className="absolute top-4 right-4 z-10">
+        <div className="fixed inset-0 z-50 bg-background">
+          <div className="absolute top-4 right-4 z-10 flex gap-2">
             <Button
-              variant="secondary"
               size="sm"
-              onClick={() => setIsFullPreview(false)}
-              className="flex items-center gap-2"
+              variant="secondary"
+              onClick={openInNewTab}
             >
-              <X className="h-4 w-4" />
-              Exit Full Preview (Esc)
+              <ExternalLink className="h-4 w-4 mr-2" />
+              Open in New Tab
+            </Button>
+            <Button
+              size="sm"
+              variant="secondary"
+              onClick={() => setIsFullPreview(false)}
+            >
+              <X className="h-4 w-4 mr-2" />
+              Exit Preview
             </Button>
           </div>
           <iframe
             ref={fullPreviewIframeRef}
-            className="w-full h-full"
-            title="Full Website Preview"
-            sandbox="allow-scripts allow-same-origin allow-forms"
+            className="w-full h-full border-0"
+            title="Full Preview"
+            sandbox="allow-scripts allow-forms allow-popups allow-same-origin"
+            srcDoc={code}
           />
         </div>
       )}

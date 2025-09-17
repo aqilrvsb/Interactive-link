@@ -187,6 +187,32 @@ export class FileManager {
     return 'about:blank';
   }
 
+  // Delete project file from storage
+  static async deleteProjectFile(projectId: string, sequentialId?: number | null): Promise<boolean> {
+    try {
+      const fileName = sequentialId 
+        ? `${sequentialId}/index.html`
+        : `${projectId}/index.html`;
+
+      const { error } = await supabase.storage
+        .from('websites')
+        .remove([fileName]);
+
+      if (error) {
+        console.error('Error deleting file:', error);
+        return false;
+      }
+
+      // Remove from localStorage
+      localStorage.removeItem(`project_file_${projectId}`);
+      
+      return true;
+    } catch (error) {
+      console.error('Error deleting project file:', error);
+      return false;
+    }
+  }
+
   // Alias for compatibility
   static updateProjectFile = FileManager.createProjectFile;
 }
