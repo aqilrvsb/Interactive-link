@@ -11,29 +11,22 @@ const LivePreview = () => {
 
   useEffect(() => {
     const loadLivePreview = async () => {
-      // Check if we have projectId (could be in position 1 or 2)
-      const actualProjectId = userId && projectId && projectName 
-        ? projectId  // Old format: /userId/projectId/projectName
-        : projectId || userId;  // New format: /projectId/projectName or /projectId
-      
-      if (!actualProjectId) {
+      // projectId is now always in the first param position with /p/ prefix
+      if (!projectId) {
         setError('Invalid preview URL');
         setLoading(false);
         return;
       }
 
       try {
-        console.log('Loading live preview for project:', actualProjectId);
-        
-        // First, check if projectId is a sequential ID (integer)
-        // No need to convert, it's already an integer in the database
+        console.log('Loading live preview for project:', projectId);
         
         // First, try to fetch directly from storage (public access)
         // Try different file name patterns
         let htmlContent = null;
         
-        // Pattern 1: actualProjectId/index.html
-        let fileName = `${actualProjectId}/index.html`;
+        // Pattern 1: projectId/index.html
+        let fileName = `${projectId}/index.html`;
         let { data: urlData } = supabase.storage
           .from('websites')
           .getPublicUrl(fileName);
@@ -94,7 +87,7 @@ const LivePreview = () => {
           const { data: project } = await supabase
             .from('projects')
             .select('code_content, title, is_public')
-            .eq('id', parseInt(actualProjectId))
+            .eq('id', parseInt(projectId))
             .eq('is_public', true) // Only public projects
             .maybeSingle();
 

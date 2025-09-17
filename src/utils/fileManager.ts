@@ -178,7 +178,7 @@ export class FileManager {
     }
   }
 
-  // Open preview using simple URL format: /projectId/project-name
+  // Open preview using simple URL format: /p/projectId/project-name
   static async openPreview(projectId: number | string): Promise<void> {
     try {
       // Get the project details
@@ -196,9 +196,9 @@ export class FileManager {
       // Generate slug from project title
       const projectSlug = project.title.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '');
       
-      // Open simple URL format: /projectId/project-name
-      // Example: /1/my-website, /2/portfolio
-      const cleanUrl = `/${projectId}/${projectSlug}`;
+      // Open simple URL format with /p/ prefix: /p/projectId/project-name
+      // Example: /p/1/my-website, /p/2/portfolio
+      const cleanUrl = `/p/${projectId}/${projectSlug}`;
       window.open(cleanUrl, '_blank');
       toast.success('Preview opened');
       
