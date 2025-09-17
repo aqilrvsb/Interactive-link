@@ -22,25 +22,42 @@ export class FileManager {
         ? `${sequentialId}/index.html`
         : `${projectId}/index.html`;
 
-      // ALWAYS DELETE OLD FILE FIRST (if it exists)
+      // FORCE DELETE OLD FILE FIRST - Multiple attempts to ensure deletion
+      console.log('Step 1: Force deleting old file:', fileName);
+      
+      // Try multiple delete methods to ensure file is removed
       try {
-        console.log('Attempting to delete old file:', fileName);
-        const { error: deleteError } = await supabase.storage
+        // Method 1: Direct delete
+        const { error: deleteError1 } = await supabase.storage
           .from('websites')
           .remove([fileName]);
         
-        if (deleteError) {
-          console.log('Delete error (file might not exist):', deleteError.message);
+        if (!deleteError1) {
+          console.log('File deleted successfully (method 1)');
         } else {
-          console.log('Old file deleted successfully');
+          console.log('Delete attempt 1 result:', deleteError1.message);
         }
       } catch (err) {
-        // Ignore delete errors - file might not exist
-        console.log('Delete skipped:', err);
+        console.log('Delete attempt 1 failed:', err);
       }
 
-      // Small delay to ensure delete completes
-      await new Promise(resolve => setTimeout(resolve, 100));
+      // Method 2: Try with different path format
+      try {
+        const altFileName = fileName.startsWith('/') ? fileName.slice(1) : `/${fileName}`;
+        const { error: deleteError2 } = await supabase.storage
+          .from('websites')
+          .remove([altFileName]);
+          
+        if (!deleteError2) {
+          console.log('File deleted successfully (method 2)');
+        }
+      } catch (err) {
+        // Silent fail for alt method
+      }
+
+      // Wait longer to ensure delete is processed
+      console.log('Waiting for delete to complete...');
+      await new Promise(resolve => setTimeout(resolve, 500));
 
       // Create a proper File object with HTML mime type
       const file = new File([htmlContent], 'index.html', { 
@@ -48,18 +65,59 @@ export class FileManager {
         lastModified: Date.now()
       });
 
-      // NOW CREATE NEW FILE - Upload as File object
-      console.log('Uploading new file:', fileName);
+      // NOW CREATE COMPLETELY NEW FILE - Never use upsert
+      console.log('Step 2: Creating brand new file:', fileName);
       const { error: uploadError } = await supabase.storage
         .from('websites')
         .upload(fileName, file, {
           contentType: 'text/html',
-          cacheControl: 'no-cache, max-age=0',
-          upsert: false // False because we already deleted
+          cacheControl: 'no-cache, no-store, must-revalidate, max-age=0',
+          upsert: false // NEVER upsert - always create new
         });
 
       if (uploadError) {
         console.error('Storage upload error:', uploadError);
+        
+        // If upload fails because file exists, force delete and retry
+        if (uploadError.message?.includes('already exists')) {
+          console.log('File still exists, forcing complete removal and retry...');
+          
+          // Force remove with multiple attempts
+          for (let i = 0; i < 3; i++) {
+            try {
+              await supabase.storage.from('websites').remove([fileName]);
+              await new Promise(resolve => setTimeout(resolve, 300));
+            } catch (e) {
+              // Continue trying
+            }
+          }
+          
+          // Final retry after aggressive deletion
+          const { error: retryError } = await supabase.storage
+            .from('websites')
+            .upload(fileName, file, {
+              contentType: 'text/html',
+              cacheControl: 'no-cache, no-store, must-revalidate',
+              upsert: false
+            });
+            
+          if (retryError) {
+            console.error('Retry after delete failed:', retryError);
+            // Last resort - use upsert
+            const { error: finalError } = await supabase.storage
+              .from('websites')
+              .upload(fileName, file, {
+                contentType: 'text/html',
+                cacheControl: 'no-cache, no-store, must-revalidate',
+                upsert: true // Last resort - force overwrite
+              });
+              
+            if (finalError) {
+              console.error('Final upload attempt failed:', finalError);
+              return false;
+            }
+          }
+        }
         
         // Check if bucket doesn't exist
         if (uploadError.message?.includes('not found')) {
