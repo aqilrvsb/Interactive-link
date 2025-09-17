@@ -134,7 +134,7 @@ export const useProjects = () => {
     }
   };
 
-  const updateProject = async (id: string, updates: Partial<Omit<Project, 'id' | 'user_id' | 'created_at'>>) => {
+  const updateProject = async (id: number, updates: Partial<Omit<Project, 'id' | 'user_id' | 'created_at'>>) => {
     try {
       const { data, error } = await supabase
         .from('projects')
@@ -177,7 +177,7 @@ export const useProjects = () => {
     }
   };
 
-  const deleteProject = async (id: string) => {
+  const deleteProject = async (id: number) => {
     try {
       const { error } = await supabase
         .from('projects')

@@ -81,64 +81,49 @@ export const AuthProvider = ({ children }: AuthProviderProps) => {
 
   useEffect(() => {
     let mounted = true;
-    let retryCount = 0;
-    const maxRetries = 3;
-
+    
     // Check for existing session on mount
     const initializeAuth = async () => {
       try {
-        // Add delay to prevent rate limiting
-        if (retryCount > 0) {
-          await new Promise(resolve => setTimeout(resolve, 1000 * retryCount));
-        }
-
+        console.log('Initializing auth...');
+        
         // First check Supabase auth session
         const { data: { session: currentSession }, error } = await supabase.auth.getSession();
         
-        if (error && retryCount < maxRetries) {
-          retryCount++;
-          console.log(`Auth initialization retry ${retryCount}/${maxRetries}`);
-          return initializeAuth();
+        if (error) {
+          console.error('Error getting session:', error);
         }
         
         if (currentSession && mounted) {
+          console.log('Found active session:', currentSession.user.id);
           setSession(currentSession);
           await fetchUserProfile(currentSession.user.id);
         } else {
+          console.log('No active session found, checking localStorage...');
           // Check localStorage as fallback
           const storedUser = localStorage.getItem('auth_user');
           if (storedUser && mounted) {
             try {
               const parsedUser = JSON.parse(storedUser);
+              console.log('Found stored user:', parsedUser);
               setUser(parsedUser);
               
-              // Verify the user still exists
-              const { data: verifyUser } = await supabase
-                .from('users')
-                .select('id')
-                .eq('id', parsedUser.id)
-                .maybeSingle();
-              
-              if (!verifyUser && mounted) {
-                // User doesn't exist anymore, clear storage
-                setUser(null);
-                localStorage.removeItem('auth_user');
+              // Try to restore session from Supabase
+              const { data: { session: restoredSession } } = await supabase.auth.getSession();
+              if (restoredSession) {
+                setSession(restoredSession);
               }
             } catch (error) {
+              console.error('Error parsing stored user:', error);
               localStorage.removeItem('auth_user');
             }
           }
         }
       } catch (error) {
         console.error('Error initializing auth:', error);
-        if (retryCount < maxRetries) {
-          retryCount++;
-          setTimeout(() => {
-            if (mounted) initializeAuth();
-          }, 1000 * retryCount);
-        }
       } finally {
         if (mounted) {
+          console.log('Auth initialization complete');
           setLoading(false);
         }
       }
