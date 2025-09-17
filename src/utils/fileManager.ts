@@ -2,7 +2,7 @@ import { toast } from 'sonner';
 import { supabase } from '@/integrations/supabase/client';
 
 export class FileManager {
-  // Direct save to Supabase Storage ONLY (no database)
+  // Save HTML to Supabase Storage with proper content type for rendering
   static async createProjectFile(
     projectId: string, 
     title: string, 
@@ -22,16 +22,16 @@ export class FileManager {
         ? `${sequentialId}/index.html`
         : `${projectId}/index.html`;
 
-      // Convert HTML string to Blob with proper MIME type
+      // Convert HTML string to Blob with proper MIME type for rendering
       const htmlBlob = new Blob([htmlContent], { 
         type: 'text/html; charset=utf-8' 
       });
 
-      // Upload directly to Supabase Storage (this is our ONLY storage)
+      // Upload to Supabase Storage
       const { error: uploadError } = await supabase.storage
         .from('websites')
         .upload(fileName, htmlBlob, {
-          upsert: true, // This will create new or update existing
+          upsert: true,
           contentType: 'text/html; charset=utf-8',
           cacheControl: '3600'
         });
@@ -81,61 +81,13 @@ export class FileManager {
         title,
         fileName,
         publicUrl,
-        lastModified: new Date().toISOString()
+        createdAt: new Date().toISOString()
       }));
       
-      console.log('File saved successfully to storage:', publicUrl);
+      console.log('File saved successfully:', publicUrl);
       return true;
     } catch (error) {
       console.error('Error creating project file:', error);
-      return false;
-    }
-  }
-
-  // Load HTML content directly from Supabase Storage for editing
-  static async loadProjectFile(projectId: string, sequentialId?: number | null): Promise<string | null> {
-    try {
-      // Determine file path
-      const fileName = sequentialId 
-        ? `${sequentialId}/index.html`
-        : `${projectId}/index.html`;
-
-      // Download the file from storage
-      const { data, error } = await supabase.storage
-        .from('websites')
-        .download(fileName);
-
-      if (error) {
-        console.error('Error loading file from storage:', error);
-        return null;
-      }
-
-      // Convert blob to text
-      const htmlContent = await data.text();
-      return htmlContent;
-    } catch (error) {
-      console.error('Error loading project file:', error);
-      return null;
-    }
-  }
-
-  // Check if file exists in storage
-  static async fileExists(projectId: string, sequentialId?: number | null): Promise<boolean> {
-    try {
-      const fileName = sequentialId 
-        ? `${sequentialId}/index.html`
-        : `${projectId}/index.html`;
-
-      const { data, error } = await supabase.storage
-        .from('websites')
-        .list(sequentialId ? sequentialId.toString() : projectId, {
-          limit: 1,
-          search: 'index.html'
-        });
-
-      return !error && data && data.length > 0;
-    } catch (error) {
-      console.error('Error checking file existence:', error);
       return false;
     }
   }
@@ -202,32 +154,6 @@ export class FileManager {
     }
   }
 
-  // Delete project file from storage
-  static async deleteProjectFile(projectId: string, sequentialId?: number | null): Promise<boolean> {
-    try {
-      const fileName = sequentialId 
-        ? `${sequentialId}/index.html`
-        : `${projectId}/index.html`;
-
-      const { error } = await supabase.storage
-        .from('websites')
-        .remove([fileName]);
-
-      if (error) {
-        console.error('Error deleting file:', error);
-        return false;
-      }
-
-      // Remove from localStorage
-      localStorage.removeItem(`project_file_${projectId}`);
-      
-      return true;
-    } catch (error) {
-      console.error('Error deleting project file:', error);
-      return false;
-    }
-  }
-
   // Get the project file info
   static getProjectFile(projectId: string) {
     try {
@@ -242,6 +168,23 @@ export class FileManager {
   static getProjectFriendlyUrl(projectId: string): string | null {
     const fileData = this.getProjectFile(projectId);
     return fileData?.publicUrl || null;
+  }
+
+  // Get project file URL for test mode
+  static getProjectFileUrl(projectId: string): string {
+    const fileData = this.getProjectFile(projectId);
+    if (fileData?.publicUrl) {
+      return fileData.publicUrl;
+    }
+    
+    // Fallback to creating a blob URL from localStorage
+    const testCode = localStorage.getItem('test-project-code');
+    if (testCode) {
+      const blob = new Blob([testCode], { type: 'text/html' });
+      return URL.createObjectURL(blob);
+    }
+    
+    return 'about:blank';
   }
 
   // Alias for compatibility

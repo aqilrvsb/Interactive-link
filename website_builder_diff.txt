@@ -1,0 +1,572 @@
+diff --git a/src/pages/WebsiteBuilder.tsx b/src/pages/WebsiteBuilder.tsx
+index 0aa8a16..92b3f06 100644
+--- a/src/pages/WebsiteBuilder.tsx
++++ b/src/pages/WebsiteBuilder.tsx
+@@ -88,111 +88,75 @@ const WebsiteBuilder = () => {
+   const [isSaving, setIsSaving] = useState(false);
+   const [currentProject, setCurrentProject] = useState<any>(null);
+   const [isFullPreview, setIsFullPreview] = useState(false);
++  const [sequentialId, setSequentialId] = useState<number | null>(null);
+   const fullPreviewIframeRef = useRef<HTMLIFrameElement>(null);
+ 
+-  // Load project if projectId is provided
++  // Load project from storage on mount
+   useEffect(() => {
+-    if (projectId && projects.length > 0) {
+-      const project = projects.find(p => p.id === projectId);
+-      if (project && project.code_content) {
+-        setCurrentProject(project);
+-        setCode(project.code_content);
+-      }
+-    } else if (!user) {
+-      // Load test project from localStorage if not logged in
+-      const testCode = localStorage.getItem('test-project-code');
+-      if (testCode) {
+-        setCode(testCode);
+-        setCurrentProject({
+-          id: 'test-project',
+-          title: 'Test Project',
+-          code_content: testCode,
+-          created_at: new Date().toISOString()
+-        });
++    const loadProject = async () => {
++      if (!projectId) return;
++
++      try {
++        // First, get the project metadata from database (for title, etc)
++        if (projects.length > 0) {
++          const project = projects.find(p => p.id === projectId);
++          if (project) {
++            setCurrentProject(project);
++          }
++        }
++
++        // Get user's sequential ID if available
++        if (user?.id) {
++          const { data: seqData } = await supabase
++            .from('user_sequences')
++            .select('sequential_id')
++            .eq('user_id', user.id)
++            .single();
++          
++          if (seqData?.sequential_id) {
++            setSequentialId(seqData.sequential_id);
++          }
++        }
++
++        // Load the HTML content directly from storage
++        const htmlContent = await FileManager.loadProjectFile(projectId, sequentialId);
++        if (htmlContent) {
++          setCode(htmlContent);
++        } else if (currentProject?.code_content) {
++          // Fallback to database content if storage doesn't have it yet
++          setCode(currentProject.code_content);
++        }
++      } catch (error) {
++        console.error('Error loading project:', error);
++        toast.error('Failed to load project');
+       }
+-    }
+-  }, [projectId, projects, user]);
++    };
+ 
+-  const processCode = () => {
+-    // Return the code as-is - it can be any format (HTML, React JSX, etc.)
+-    return code;
+-  };
++    loadProject();
++  }, [projectId, projects, user, sequentialId]);
+ 
+   const updatePreview = () => {
+-    const processedCode = processCode();
+-    
+     // Update main iframe
+     if (iframeRef.current) {
+-      iframeRef.current.srcdoc = processedCode;
++      iframeRef.current.srcdoc = code;
+     }
+     
+     // Update full preview iframe if it exists
+     if (fullPreviewIframeRef.current) {
+-      fullPreviewIframeRef.current.srcdoc = processedCode;
+-    }
+-  };
+-
+-  const openInNewTab = () => {
+-    const processedCode = processCode();
+-    const blob = new Blob([processedCode], { type: 'text/html' });
+-    const url = URL.createObjectURL(blob);
+-    window.open(url, '_blank');
+-    // Clean up the URL object after a short delay
+-    setTimeout(() => URL.revokeObjectURL(url), 1000);
+-  };
+-
+-  const openInWebsiteMode = async () => {
+-    if (!currentProject || !currentProject.id) {
+-      toast.error('Please save your project first to use Website Mode');
+-      return;
+-    }
+-
+-    if (currentProject.id === 'test-project') {
+-      // Test mode - use direct file URL that FileManager creates
+-      const fileUrl = FileManager.getProjectFileUrl(currentProject.id);
+-      const websiteWindow = window.open(fileUrl, '_blank', 'toolbar=yes,scrollbars=yes,resizable=yes,width=1200,height=800');
+-      
+-      if (websiteWindow) {
+-        toast.success('Website opened! Login and save for permanent URLs.');
+-      } else {
+-        toast.error('Please allow pop-ups to use Website Mode');
+-      }
+-    } else {
+-      try {
+-        // For real projects, use the Supabase public URL
+-        const { data: publicData } = supabase.storage
+-          .from('websites')
+-          .getPublicUrl(`${currentProject.id}/index.html`);
+-
+-        const publicUrl = publicData?.publicUrl;
+-        if (!publicUrl) {
+-          toast.error('Failed to resolve public website URL');
+-          return;
+-        }
+-
+-        const websiteWindow = window.open(publicUrl, '_blank', 'toolbar=yes,scrollbars=yes,resizable=yes,width=1200,height=800');
+-        if (websiteWindow) {
+-          toast.success('Website opened from Supabase Storage!');
+-        } else {
+-          toast.error('Please allow pop-ups to use Website Mode');
+-        }
+-      } catch (error) {
+-        console.error('Error opening website mode:', error);
+-        toast.error('Failed to open website mode');
+-      }
++      fullPreviewIframeRef.current.srcdoc = code;
+     }
+   };
+ 
+   // Update preview when code changes
+   useEffect(() => {
+-    const timeoutId = setTimeout(updatePreview, 300);
++    const timeoutId = setTimeout(() => updatePreview(), 500);
+     return () => clearTimeout(timeoutId);
+   }, [code]);
+ 
+   // Handle ESC key for full preview mode
+   useEffect(() => {
+-    const handleEscKey = (event: KeyboardEvent) => {
+-      if (event.key === 'Escape' && isFullPreview) {
++    const handleEscKey = (e: KeyboardEvent) => {
++      if (e.key === 'Escape' && isFullPreview) {
+         setIsFullPreview(false);
+       }
+     };
+@@ -200,8 +164,6 @@ const WebsiteBuilder = () => {
+     if (isFullPreview) {
+       document.addEventListener('keydown', handleEscKey);
+       document.body.style.overflow = 'hidden';
+-    } else {
+-      document.body.style.overflow = 'unset';
+     }
+ 
+     return () => {
+@@ -220,74 +182,19 @@ const WebsiteBuilder = () => {
+     try {
+       let project = currentProject;
+ 
+-      // Create or update project in database
++      // If no project exists, create one in database (for metadata only)
+       if (!project || project.id === 'test-project') {
+         const title = `Website - ${new Date().toLocaleDateString()}`;
+-        project = await createProject({
+-          title,
+-          description: 'A website built with the code editor',
+-          code_content: code,
+-          language: 'html',
+-          is_public: false,
+-        });
+         
+-        if (!project) {
+-          throw new Error('Failed to create project');
+-        }
+-        setCurrentProject(project);
+-      } else {
+-        project = await updateProject(project.id, {
+-          code_content: code,
+-          updated_at: new Date().toISOString()
+-        });
+-      }
+-
+-      // Simply save the HTML file for preview
+-      if (project) {
+-        await FileManager.createProjectFile(
+-          project.id,
+-          project.title,
+-          code
+-        );
+-      }
+-
+-      toast.success('Project saved successfully!');
+-      updatePreview();
+-    } catch (error) {
+-      console.error('Error saving:', error);
+-      toast.error('Failed to save project');
+-    } finally {
+-      setIsSaving(false);
+-    }
+-  };
+-
+-  const handleQuickSave = async () => {
+-    if (!code.trim()) {
+-      toast.error('Please add some code before saving');
+-      return;
+-    }
+-
+-    setIsSaving(true);
+-    try {
+-      const processedCode = processCode();
+-
+-      // Always try to save to database if we have any user context
+-      let project = currentProject;
+-
+-      if (!project || project.id === 'test-project') {
+-        // Create new project - use the current title or generate one
+-        const title = currentProject?.title || `Website - ${new Date().toLocaleDateString()}`;
+-        
+-        // Make sure we have a user ID to save with
++        // Check if user is logged in
+         const { data: userData } = await supabase.auth.getUser();
+         const userId = user?.id || userData?.user?.id;
+         
+         if (!userId) {
+-          // Fallback to test mode if no user
++          // Test mode - save locally
+           const testProject = {
+             id: 'test-project-' + Date.now(),
+             title,
+-            code_content: code,
+             created_at: new Date().toISOString()
+           };
+           localStorage.setItem('test-project-code', code);
+@@ -298,11 +205,11 @@ const WebsiteBuilder = () => {
+           return;
+         }
+ 
+-        // Create project in database
++        // Create project in database (for metadata)
+         project = await createProject({
+           title,
+           description: 'A website built with the code editor',
+-          code_content: code,
++          code_content: '', // We don't store code in DB anymore
+           language: 'html',
+           is_public: false,
+         });
+@@ -310,88 +217,51 @@ const WebsiteBuilder = () => {
+         if (!project) {
+           throw new Error('Failed to create project');
+         }
+-        
+         setCurrentProject(project);
+-      } else {
+-        // Update existing project
+-        project = await updateProject(project.id, {
+-          code_content: code,
+-          updated_at: new Date().toISOString()
+-        });
+       }
+ 
+-        // Save HTML file using FileManager for proper file creation and preview
+-        if (project) {
+-          // Get user ID from multiple sources
+-          const { data: authData } = await supabase.auth.getUser();
+-          const userId = user?.id || authData?.user?.id;
+-          
+-          if (userId) {
+-            // Get the user's sequential ID from Supabase
+-            let sequentialId = null;
+-            try {
+-              const { data: seqData, error: seqError } = await supabase
+-                .from('user_sequences')
+-                .select('sequential_id')
+-                .eq('user_id', userId)
+-                .single();
+-              
+-              if (seqData && !seqError) {
+-                sequentialId = seqData.sequential_id;
+-                console.log('User sequential ID retrieved:', sequentialId);
+-              } else {
+-                console.log('Could not fetch sequential ID:', seqError);
+-                // Try to get from users_with_sequential_ids view
+-                const { data: viewData } = await supabase
+-                  .from('users_with_sequential_ids')
+-                  .select('sequential_id')
+-                  .eq('user_id', userId)
+-                  .single();
+-                
+-                if (viewData) {
+-                  sequentialId = viewData.sequential_id;
+-                  console.log('Sequential ID from view:', sequentialId);
+-                }
+-              }
+-            } catch (err) {
+-              console.error('Error fetching sequential ID:', err);
+-            }
+-
+-            // Save with sequential ID - this handles everything including Supabase storage
+-            const saveSuccess = await FileManager.createProjectFile(
+-              project.id, 
+-              project.title, 
+-              processedCode,
+-              userId,
+-              sequentialId // Pass sequential ID
+-            );
+-            
+-            if (saveSuccess) {
+-              console.log('Project file created successfully with sequential ID:', sequentialId);
+-              // The FileManager already saves the public URL, no need to duplicate
+-            } else {
+-              console.error('Failed to create project file');
+-            }
+-          }
++      // Get user's sequential ID
++      let userSequentialId = sequentialId;
++      if (!userSequentialId && user?.id) {
++        const { data: seqData } = await supabase
++          .from('user_sequences')
++          .select('sequential_id')
++          .eq('user_id', user.id)
++          .single();
++        
++        if (seqData?.sequential_id) {
++          userSequentialId = seqData.sequential_id;
++          setSequentialId(userSequentialId);
+         }
++      }
++
++      // Save directly to Supabase Storage (this is our primary storage)
++      const saveSuccess = await FileManager.createProjectFile(
++        project.id,
++        project.title,
++        code,
++        user?.id,
++        userSequentialId
++      );
+ 
+-        // Create a new version
++      if (saveSuccess) {
++        toast.success('Project saved successfully!');
++        
++        // Create a version record (optional, for history)
+         try {
+           await createVersion({
+             project_id: project.id,
+-            html_content: processedCode,
++            html_content: code,
+             css_content: null,
+             js_content: null,
+             assets: []
+           });
+         } catch (versionError) {
+-          console.error('Version creation error:', versionError);
+-          // Don't show error toast since the main save succeeded
++          console.log('Version creation skipped:', versionError);
+         }
+-
+-        toast.success('Project saved successfully!');
+-        // Auto-run the saved HTML in preview
+-        updatePreview();
++      } else {
++        throw new Error('Failed to save to storage');
++      }
+ 
+     } catch (error) {
+       console.error('Error saving:', error);
+@@ -415,7 +285,7 @@ const WebsiteBuilder = () => {
+             <ArrowLeft className="h-4 w-4 mr-2" />
+             Dashboard
+           </Button>
+-          <h1 className="text-lg font-semibold flex items-center gap-2">
++          <h1 className="text-xl font-semibold flex items-center gap-2">
+             <Code2 className="h-5 w-5" />
+             Code Editor
+           </h1>
+@@ -466,101 +336,100 @@ const WebsiteBuilder = () => {
+           <ResizablePanel defaultSize={70} minSize={30}>
+             <Tabs defaultValue="preview" className="h-full flex flex-col">
+               <div className="border-b px-4 py-2">
+-                <TabsList className="grid w-full max-w-md grid-cols-2">
+-                  <TabsTrigger value="preview">Preview</TabsTrigger>
+-                  <TabsTrigger value="domains">Domains</TabsTrigger>
++                <TabsList className="h-9">
++                  <TabsTrigger value="preview" className="text-xs">
++                    <Eye className="h-3 w-3 mr-1" />
++                    Live Preview
++                  </TabsTrigger>
++                  <TabsTrigger value="files" className="text-xs">
++                    <Files className="h-3 w-3 mr-1" />
++                    Files
++                  </TabsTrigger>
++                  <TabsTrigger value="domains" className="text-xs">
++                    <Globe className="h-3 w-3 mr-1" />
++                    Domains
++                  </TabsTrigger>
++                  <TabsTrigger value="settings" className="text-xs">
++                    <Settings className="h-3 w-3 mr-1" />
++                    Settings
++                  </TabsTrigger>
+                 </TabsList>
+               </div>
+ 
+-              <TabsContent value="preview" className="flex-1 p-0 m-0 h-full">
+-                <Card className="h-full flex flex-col">
+-                  <CardHeader className="flex-none pb-2 px-3 py-2">
+-                    <div className="flex items-center justify-between">
+-                      <CardTitle className="text-sm flex items-center gap-2">
+-                        <Globe className="h-3 w-3" />
+-                        Live Preview
+-                      </CardTitle>
+-                      <div className="flex items-center gap-1">
+-                        <Button
+-                          variant="ghost"
+-                          size="sm"
+-                          onClick={openInWebsiteMode}
+-                          className="h-7 px-2 text-xs"
+-                          title="Open as Website"
+-                        >
+-                          <Globe className="h-3 w-3 mr-1" />
+-                          Website
+-                        </Button>
+-                        <Button
+-                          variant="ghost"
+-                          size="sm"
+-                          onClick={openInNewTab}
+-                          className="h-7 w-7 p-0"
+-                          title="Open in new tab"
+-                        >
+-                          <ExternalLink className="h-3 w-3" />
+-                        </Button>
+-                        <Button
+-                          variant="ghost"
+-                          size="sm"
+-                          onClick={() => setIsFullPreview(true)}
+-                          className="h-7 w-7 p-0"
+-                          title="Full Preview"
+-                        >
+-                          <Maximize className="h-3 w-3" />
+-                        </Button>
+-                      </div>
+-                    </div>
+-                  </CardHeader>
+-                  <CardContent className="flex-1 min-h-0 overflow-hidden p-2">
+-                    <div className="h-full border rounded-lg overflow-hidden">
+-                      <iframe
+-                        ref={iframeRef}
+-                        className="w-full h-full block border-0"
+-                        title="Code Preview"
+-                        sandbox="allow-scripts allow-same-origin allow-forms"
+-                      />
+-                    </div>
+-                  </CardContent>
+-                </Card>
++              <TabsContent value="preview" className="flex-1 relative overflow-hidden m-0">
++                <div className="absolute top-2 right-2 z-10 flex gap-2">
++                  <Button
++                    size="sm"
++                    variant="secondary"
++                    onClick={() => setIsFullPreview(true)}
++                    className="shadow-md"
++                  >
++                    <Maximize className="h-4 w-4" />
++                  </Button>
++                </div>
++                <iframe
++                  ref={iframeRef}
++                  className="w-full h-full border-0"
++                  title="Preview"
++                  sandbox="allow-scripts allow-forms allow-popups allow-same-origin"
++                />
++              </TabsContent>
++
++              <TabsContent value="files" className="flex-1 p-4 overflow-auto m-0">
++                {currentProject && currentProject.id !== 'test-project' ? (
++                  <ProjectFilesView projectId={currentProject.id} />
++                ) : (
++                  <Card>
++                    <CardContent className="pt-6">
++                      <p className="text-sm text-muted-foreground text-center">
++                        Save your project to manage files
++                      </p>
++                    </CardContent>
++                  </Card>
++                )}
+               </TabsContent>
+ 
+-              <TabsContent value="domains" className="flex-1 p-4 m-0 overflow-auto">
+-                {currentProject ? (
++              <TabsContent value="domains" className="flex-1 p-4 overflow-auto m-0">
++                {currentProject && currentProject.id !== 'test-project' ? (
+                   <DomainManagement projectId={currentProject.id} />
+                 ) : (
+-                  <div className="flex items-center justify-center h-full text-center">
+-                    <div className="text-muted-foreground">
+-                      <Globe className="h-12 w-12 mx-auto mb-4 opacity-50" />
+-                      <div>Save your project first to manage domains</div>
+-                    </div>
+-                  </div>
++                  <Card>
++                    <CardContent className="pt-6">
++                      <p className="text-sm text-muted-foreground text-center">
++                        Save your project to manage domains
++                      </p>
++                    </CardContent>
++                  </Card>
+                 )}
+               </TabsContent>
++
++              <TabsContent value="settings" className="flex-1 p-4 overflow-auto m-0">
++                <SupabaseSettings />
++              </TabsContent>
+             </Tabs>
+           </ResizablePanel>
+         </ResizablePanelGroup>
+       </div>
+ 
+-      {/* Full Preview Overlay */}
++      {/* Full Screen Preview Modal */}
+       {isFullPreview && (
+-        <div className="fixed inset-0 z-50 bg-black">
+-          <div className="absolute top-4 right-4 z-10">
++        <div className="fixed inset-0 z-50 bg-background">
++          <div className="absolute top-4 right-4 z-10 flex gap-2">
+             <Button
+-              variant="secondary"
+               size="sm"
++              variant="secondary"
+               onClick={() => setIsFullPreview(false)}
+-              className="flex items-center gap-2"
+             >
+-              <X className="h-4 w-4" />
+-              Exit Full Preview (Esc)
++              <X className="h-4 w-4 mr-2" />
++              Exit Preview
+             </Button>
+           </div>
+           <iframe
+             ref={fullPreviewIframeRef}
+-            className="w-full h-full"
+-            title="Full Website Preview"
+-            sandbox="allow-scripts allow-same-origin allow-forms"
++            className="w-full h-full border-0"
++            title="Full Preview"
++            sandbox="allow-scripts allow-forms allow-popups allow-same-origin"
++            srcDoc={code}
+           />
+         </div>
+       )}
+@@ -568,4 +437,4 @@ const WebsiteBuilder = () => {
+   );
+ };
+ 
+-export default WebsiteBuilder;
++export default WebsiteBuilder;
+\ No newline at end of file
