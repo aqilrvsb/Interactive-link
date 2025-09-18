@@ -369,14 +369,19 @@ const WebsiteBuilder = () => {
         </div>
         <div className="flex items-center gap-2">
           {currentProject && currentProject.id !== 'test-project' && (
-            <Button 
-              variant="outline" 
-              onClick={() => FileManager.openPreview(currentProject.id)} 
-              className="flex items-center gap-2"
-            >
-              <Eye className="h-4 w-4" />
-              Preview
-            </Button>
+            <>
+              <Button 
+                variant="outline" 
+                onClick={() => {
+                  const url = `/p/${currentProject.id}/${currentProject.title.toLowerCase().replace(/[^a-z0-9]+/g, '-')}`;
+                  window.open(url, '_blank');
+                }} 
+                className="flex items-center gap-2"
+              >
+                <Eye className="h-4 w-4" />
+                Preview
+              </Button>
+            </>
           )}
           <Button onClick={handleSave} disabled={isSaving} className="flex items-center gap-2">
             <Save className="h-4 w-4" />

@@ -10,7 +10,7 @@ import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigge
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
-import { Plus, Calendar, User, LogOut, Trash2, Edit, Globe, ChevronDown, Eye, FileEdit } from 'lucide-react';
+import { Plus, Calendar, User, LogOut, Trash2, Edit, Globe, ChevronDown, Eye, FileEdit, Link, Copy, ExternalLink } from 'lucide-react';
 import { formatDistanceToNow } from 'date-fns';
 import { FileManager } from '@/utils/fileManager';
 import { toast } from 'sonner';
@@ -22,6 +22,8 @@ const Dashboard = () => {
   const [editingProject, setEditingProject] = useState<any>(null);
   const [newTitle, setNewTitle] = useState('');
   const [isRenaming, setIsRenaming] = useState(false);
+  const [domainProject, setDomainProject] = useState<any>(null);
+  const [customDomain, setCustomDomain] = useState('');
 
   const handleSignOut = async () => {
     await signOut();
@@ -213,13 +215,23 @@ const Dashboard = () => {
                     <Button
                       variant="outline"
                       size="sm"
-                      onClick={async () => {
-                        await FileManager.openPreview(project.id);
-                        // Show the friendly URL format to users
-                        const friendlyUrl = FileManager.getProjectFriendlyUrl(project.id);
-                        if (friendlyUrl) {
-                          console.log(`Preview URL: ${window.location.origin}${friendlyUrl}`);
-                        }
+                      onClick={() => {
+                        const url = `/p/${project.id}/${project.title.toLowerCase().replace(/[^a-z0-9]+/g, '-')}`;
+                        const fullUrl = `${window.location.origin}${url}`;
+                        navigator.clipboard.writeText(fullUrl);
+                        toast.success('URL copied to clipboard!');
+                      }}
+                      className="flex items-center gap-1"
+                    >
+                      <Copy className="h-4 w-4" />
+                      Copy URL
+                    </Button>
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      onClick={() => {
+                        const url = `/p/${project.id}/${project.title.toLowerCase().replace(/[^a-z0-9]+/g, '-')}`;
+                        window.open(url, '_blank');
                       }}
                       className="flex items-center gap-1"
                     >
@@ -234,6 +246,29 @@ const Dashboard = () => {
                       <Globe className="h-4 w-4 mr-2" />
                       Website Builder
                     </Button>
+                  </div>
+                  
+                  {/* Domain Section - Railway Style */}
+                  <div className="mt-4 pt-4 border-t">
+                    <div className="flex items-center justify-between text-sm">
+                      <div className="flex items-center gap-2">
+                        <Link className="h-4 w-4 text-muted-foreground" />
+                        <span className="text-muted-foreground">
+                          {window.location.host}/p/{project.id}
+                        </span>
+                      </div>
+                      <Button
+                        variant="ghost"
+                        size="sm"
+                        className="h-7 px-2 text-xs"
+                        onClick={() => {
+                          setDomainProject(project);
+                          setCustomDomain('');
+                        }}
+                      >
+                        Add Domain
+                      </Button>
+                    </div>
                   </div>
                 </CardContent>
               </Card>
@@ -271,6 +306,72 @@ const Dashboard = () => {
             </Button>
             <Button onClick={handleRenameProject} disabled={isRenaming || !newTitle.trim()}>
               {isRenaming ? 'Renaming...' : 'Save changes'}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Domain Dialog - Railway Style */}
+      <Dialog open={!!domainProject} onOpenChange={(open) => !open && setDomainProject(null)}>
+        <DialogContent className="sm:max-w-[500px]">
+          <DialogHeader>
+            <DialogTitle>Add Custom Domain</DialogTitle>
+            <DialogDescription>
+              Connect your custom domain to this project
+            </DialogDescription>
+          </DialogHeader>
+          <div className="space-y-4 py-4">
+            <div>
+              <Label htmlFor="domain">Enter your domain</Label>
+              <Input
+                id="domain"
+                value={customDomain}
+                onChange={(e) => setCustomDomain(e.target.value)}
+                placeholder="example.com"
+                className="mt-2"
+              />
+            </div>
+            
+            {customDomain && (
+              <div className="space-y-2 p-4 bg-muted rounded-lg">
+                <h4 className="font-medium text-sm">Configure DNS Records</h4>
+                <p className="text-xs text-muted-foreground mb-3">
+                  To finish setting up your custom domain, add the following DNS records to {customDomain}
+                </p>
+                <div className="space-y-2">
+                  <div className="grid grid-cols-3 gap-2 text-sm">
+                    <div className="font-medium">Type</div>
+                    <div className="font-medium">Name</div>
+                    <div className="font-medium">Value</div>
+                  </div>
+                  <div className="grid grid-cols-3 gap-2 text-sm">
+                    <div className="font-mono bg-background p-2 rounded">CNAME</div>
+                    <div className="font-mono bg-background p-2 rounded">@</div>
+                    <div className="font-mono bg-background p-2 rounded flex items-center gap-1">
+                      <span className="truncate text-xs">{window.location.host}</span>
+                      <Button
+                        variant="ghost"
+                        size="sm"
+                        className="h-5 w-5 p-0 ml-auto"
+                        onClick={() => {
+                          navigator.clipboard.writeText(window.location.host);
+                          toast.success('Copied!');
+                        }}
+                      >
+                        <Copy className="h-3 w-3" />
+                      </Button>
+                    </div>
+                  </div>
+                </div>
+                <p className="text-xs text-muted-foreground mt-3">
+                  * DNS changes can take up to 72 hours to propagate worldwide
+                </p>
+              </div>
+            )}
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setDomainProject(null)}>
+              Dismiss
             </Button>
           </DialogFooter>
         </DialogContent>
