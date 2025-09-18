@@ -216,7 +216,8 @@ const Dashboard = () => {
                       variant="outline"
                       size="sm"
                       onClick={() => {
-                        const url = `/p/${project.id}/${project.title.toLowerCase().replace(/[^a-z0-9]+/g, '-')}`;
+                        const slug = project.title.toLowerCase().replace(/[^a-z0-9]+/g, '-');
+                        const url = `/p/${project.id}/${slug}`;
                         const fullUrl = `${window.location.origin}${url}`;
                         navigator.clipboard.writeText(fullUrl);
                         toast.success('URL copied to clipboard!');
@@ -230,7 +231,8 @@ const Dashboard = () => {
                       variant="outline"
                       size="sm"
                       onClick={() => {
-                        const url = `/p/${project.id}/${project.title.toLowerCase().replace(/[^a-z0-9]+/g, '-')}`;
+                        const slug = project.title.toLowerCase().replace(/[^a-z0-9]+/g, '-');
+                        const url = `/p/${project.id}/${slug}`;
                         window.open(url, '_blank');
                       }}
                       className="flex items-center gap-1"
@@ -253,8 +255,8 @@ const Dashboard = () => {
                     <div className="flex items-center justify-between text-sm">
                       <div className="flex items-center gap-2">
                         <Link className="h-4 w-4 text-muted-foreground" />
-                        <span className="text-muted-foreground">
-                          {window.location.host}/p/{project.id}
+                        <span className="text-muted-foreground text-xs truncate max-w-[250px]" title={`${window.location.host}/p/${project.id}/${project.title.toLowerCase().replace(/[^a-z0-9]+/g, '-')}`}>
+                          {window.location.host}/p/{project.id}/{project.title.toLowerCase().replace(/[^a-z0-9]+/g, '-')}
                         </span>
                       </div>
                       <Button
