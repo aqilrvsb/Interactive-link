@@ -11,22 +11,20 @@ const LivePreview = () => {
 
   useEffect(() => {
     const loadLivePreview = async () => {
-      // projectId is now always in the first param position with /p/ prefix
-      if (!projectId) {
+      // Get the actual project ID (could be just projectId for /p/1/name format)
+      const actualProjectId = projectId || userId;
+      
+      if (!actualProjectId) {
         setError('Invalid preview URL');
         setLoading(false);
         return;
       }
 
       try {
-        console.log('Loading live preview for project:', projectId);
+        console.log('Loading preview for project:', actualProjectId);
         
-        // First, try to fetch directly from storage (public access)
-        // Try different file name patterns
-        let htmlContent = null;
-        
-        // Pattern 1: projectId/index.html
-        let fileName = `${projectId}/index.html`;
+        // Try fetching from Supabase storage
+        let fileName = `${actualProjectId}/index.html`;
         let { data: urlData } = supabase.storage
           .from('websites')
           .getPublicUrl(fileName);
@@ -34,36 +32,9 @@ const LivePreview = () => {
         if (urlData?.publicUrl) {
           const timestamp = Date.now();
           const random = Math.random().toString(36).substring(7);
-          const cacheBustedUrl = `${urlData.publicUrl}?t=${timestamp}&r=${random}&nocache=true`;
+          const cacheBustedUrl = `${urlData.publicUrl}?t=${timestamp}&r=${random}`;
           
-          const response = await fetch(cacheBustedUrl, {
-            cache: 'no-store',
-            headers: {
-              'Cache-Control': 'no-cache, no-store, must-revalidate',
-              'Pragma': 'no-cache'
-            }
-          });
-          
-          if (response.ok) {
-            htmlContent = await response.text();
-            setHtmlContent(htmlContent);
-            setLoading(false);
-            return;
-          }
-        }
-        
-        // Pattern 2: userId/index.html (if userId is sequential ID)
-        if (/^\d+$/.test(userId)) {
-          fileName = `${userId}/index.html`;
-          urlData = supabase.storage
-            .from('websites')
-            .getPublicUrl(fileName);
-            
-          if (urlData?.publicUrl) {
-            const timestamp = Date.now();
-            const random = Math.random().toString(36).substring(7);
-            const cacheBustedUrl = `${urlData.publicUrl}?t=${timestamp}&r=${random}&nocache=true`;
-            
+          try {
             const response = await fetch(cacheBustedUrl, {
               cache: 'no-store',
               headers: {
@@ -73,32 +44,31 @@ const LivePreview = () => {
             });
             
             if (response.ok) {
-              htmlContent = await response.text();
-              setHtmlContent(htmlContent);
+              const content = await response.text();
+              setHtmlContent(content);
               setLoading(false);
               return;
             }
+          } catch (err) {
+            console.error('Error fetching from storage:', err);
           }
         }
         
-        // If still no content, try database (public projects only)
-        if (!htmlContent) {
-          // No need to check auth - just get public projects
-          const { data: project } = await supabase
-            .from('projects')
-            .select('code_content, title, is_public')
-            .eq('id', parseInt(projectId))
-            .eq('is_public', true) // Only public projects
-            .maybeSingle();
+        // Try database as fallback
+        const { data: project } = await supabase
+          .from('projects')
+          .select('code_content, title, is_public')
+          .eq('id', parseInt(actualProjectId))
+          .eq('is_public', true)
+          .maybeSingle();
 
-          if (project?.code_content) {
-            setHtmlContent(project.code_content);
-          } else {
-            setError('Project not found or is private');
-          }
+        if (project?.code_content) {
+          setHtmlContent(project.code_content);
+        } else {
+          setError('Project not found or is private');
         }
       } catch (err) {
-        console.error('Error loading live preview:', err);
+        console.error('Error loading preview:', err);
         setError('Failed to load preview');
       } finally {
         setLoading(false);
