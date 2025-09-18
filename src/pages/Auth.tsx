@@ -73,7 +73,7 @@ const Auth = () => {
 
         <Card>
           <CardHeader className="text-center">
-            <CardTitle className="text-2xl font-bold">CodeCraft AI</CardTitle>
+            <CardTitle className="text-2xl font-bold">CepatBina</CardTitle>
             <CardDescription>
               Create amazing applications with AI assistance
             </CardDescription>

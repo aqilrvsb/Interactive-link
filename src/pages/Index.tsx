@@ -73,7 +73,7 @@ const Index = () => {
         <div className="mx-auto max-w-6xl">
           <div className="mb-16 text-center">
             <h2 className="mb-4 text-3xl font-bold text-foreground sm:text-4xl">
-              Why Choose CodeCraft AI?
+              Why Choose CepatBina?
             </h2>
             <p className="text-xl text-muted-foreground">
               Experience the future of development with our intelligent code generation platform
