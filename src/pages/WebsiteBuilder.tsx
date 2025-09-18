@@ -423,18 +423,6 @@ const WebsiteBuilder = () => {
                     <Eye className="h-3 w-3 mr-1" />
                     Live Preview
                   </TabsTrigger>
-                  <TabsTrigger value="files" className="text-xs">
-                    <Files className="h-3 w-3 mr-1" />
-                    Files
-                  </TabsTrigger>
-                  <TabsTrigger value="domains" className="text-xs">
-                    <Globe className="h-3 w-3 mr-1" />
-                    Domains
-                  </TabsTrigger>
-                  <TabsTrigger value="settings" className="text-xs">
-                    <Settings className="h-3 w-3 mr-1" />
-                    Settings
-                  </TabsTrigger>
                 </TabsList>
               </div>
 
@@ -455,38 +443,6 @@ const WebsiteBuilder = () => {
                   title="Preview"
                   sandbox="allow-scripts allow-forms allow-popups allow-same-origin"
                 />
-              </TabsContent>
-
-              <TabsContent value="files" className="flex-1 p-4 overflow-auto m-0">
-                {currentProject && currentProject.id !== 'test-project' ? (
-                  <ProjectFilesView projectId={currentProject.id} />
-                ) : (
-                  <Card>
-                    <CardContent className="pt-6">
-                      <p className="text-sm text-muted-foreground text-center">
-                        Save your project to manage files
-                      </p>
-                    </CardContent>
-                  </Card>
-                )}
-              </TabsContent>
-
-              <TabsContent value="domains" className="flex-1 p-4 overflow-auto m-0">
-                {currentProject && currentProject.id !== 'test-project' ? (
-                  <DomainManagement projectId={currentProject.id} />
-                ) : (
-                  <Card>
-                    <CardContent className="pt-6">
-                      <p className="text-sm text-muted-foreground text-center">
-                        Save your project to manage domains
-                      </p>
-                    </CardContent>
-                  </Card>
-                )}
-              </TabsContent>
-
-              <TabsContent value="settings" className="flex-1 p-4 overflow-auto m-0">
-                <SupabaseSettings />
               </TabsContent>
             </Tabs>
           </ResizablePanel>
