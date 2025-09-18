@@ -4,11 +4,11 @@
   "framework": "vite",
   "rewrites": [
     {
-      "source": "/p/:projectId/:projectName",
+      "source": "/(\\d+)/:projectName",
       "destination": "/index.html"
     },
     {
-      "source": "/:projectId/:projectName",  
+      "source": "/(\\d+)",
       "destination": "/index.html"
     },
     {

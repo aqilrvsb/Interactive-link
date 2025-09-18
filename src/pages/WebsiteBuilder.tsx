@@ -373,7 +373,7 @@ const WebsiteBuilder = () => {
               <Button 
                 variant="outline" 
                 onClick={() => {
-                  const url = `/p/${currentProject.id}/${currentProject.title.toLowerCase().replace(/[^a-z0-9]+/g, '-')}`;
+                  const url = `/${currentProject.id}/${currentProject.title.toLowerCase().replace(/[^a-z0-9]+/g, '-')}`;
                   window.open(url, '_blank');
                 }} 
                 className="flex items-center gap-2"
