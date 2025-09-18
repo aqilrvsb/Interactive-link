@@ -441,7 +441,6 @@ const WebsiteBuilder = () => {
                   ref={iframeRef}
                   className="w-full h-full border-0"
                   title="Preview"
-                  sandbox="allow-scripts allow-forms allow-popups allow-same-origin"
                 />
               </TabsContent>
             </Tabs>
@@ -474,7 +473,6 @@ const WebsiteBuilder = () => {
             ref={fullPreviewIframeRef}
             className="w-full h-full border-0"
             title="Full Preview"
-            sandbox="allow-scripts allow-forms allow-popups allow-same-origin"
             srcDoc={code}
           />
         </div>
