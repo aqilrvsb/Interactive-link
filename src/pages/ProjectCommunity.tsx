@@ -42,7 +42,7 @@ const ProjectCommunity = () => {
 
   const fetchCommunityProjects = async () => {
     try {
-      // First get all public projects (remove the community_visible filter for now)
+      // First get all public projects that are EXPLICITLY visible
       const { data: projectsData, error } = await supabase
         .from('projects')
         .select(`
@@ -53,9 +53,11 @@ const ProjectCommunity = () => {
           is_public,
           is_community_visible,
           created_at,
-          user_id
+          user_id,
+          profiles!inner(email)
         `)
         .eq('is_public', true)
+        .eq('is_community_visible', true)  // Only show projects explicitly marked as visible
         .order('created_at', { ascending: false });
 
       console.log('Fetched projects:', projectsData);
@@ -74,12 +76,13 @@ const ProjectCommunity = () => {
         .in('project_id', projectIds)
         .eq('status', 'active');
 
-      // Don't filter by is_community_visible - show all public projects
+      // Don't filter again - projectsData already filtered by is_community_visible=true
       const visibleProjects = projectsData || [];
 
       // Combine data
       const projectsWithDomains = visibleProjects.map(project => ({
         ...project,
+        user_email: project.profiles?.email || 'Anonymous',
         domains: domainsData?.filter(d => d.project_id === project.id) || []
       }));
 
@@ -283,12 +286,10 @@ const ProjectCommunity = () => {
                     )}
                   </div>
 
-                  {/* Creator */}
-                  {project.user_email && !userProjects.has(project.id) && (
-                    <p className="text-xs text-muted-foreground mt-3 truncate">
-                      By: {project.user_email}
-                    </p>
-                  )}
+                  {/* Creator - Always show creator email */}
+                  <p className="text-xs text-muted-foreground mt-3 truncate">
+                    By: {project.user_email}
+                  </p>
                 </CardContent>
               </Card>
             ))}
