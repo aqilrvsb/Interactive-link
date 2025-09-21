@@ -2,309 +2,324 @@
 
 ## System Overview
 
-A website builder where users create projects, and each project can have its own custom domain. One user can have multiple projects, each with different domains.
+A complete website builder platform where users create projects, share them with the community, and connect custom domains. Each user can have multiple projects with different domains.
 
-## Real Example Scenario
+## Live Demo Example
 
 ### Client A has 2 projects:
+- **Project 1**: `aqilxxxx` → `www.aqil.com`
+- **Project 2**: `meow` → `www.meow.com`
 
-**Project 1:**
-- Project ID: 8
-- Title: "aqilxxxx"
-- Preview URL: `www.cepatbina.com/p/8/aqilxxxx`
-- Custom Domain: `www.aqil.com`
+Each project can have its own custom domain, and all projects can be shared in the community.
 
-**Project 2:**
-- Project ID: 10  
-- Title: "meow"
-- Preview URL: `www.cepatbina.com/p/10/meow`
-- Custom Domain: `www.meow.com`
+## Features
 
-### How It Works:
+### Core Features
+✅ **Multi-Project Support** - Each user can create unlimited projects
+✅ **Custom Domain Mapping** - Each project can have multiple custom domains
+✅ **Project Community** - Public projects can be shared and discovered
+✅ **Privacy Controls** - Users can hide/show projects from community
+✅ **Live Preview** - Instant preview of projects
+✅ **Domain Management** - Add, verify, and remove domains
+✅ **Automatic SSL** - Via Vercel/Let's Encrypt
 
-1. **Client A creates Project 1 (aqilxxxx)**
-   - Gets preview URL: `cepatbina.com/p/8/aqilxxxx`
-   - Clicks "Add Domain" → enters `aqil.com`
-   - Configures DNS at their registrar
-   - Now `www.aqil.com` shows Project 1's website
+## Architecture
 
-2. **Client A creates Project 2 (meow)**
-   - Gets preview URL: `cepatbina.com/p/10/meow`
-   - Clicks "Add Domain" → enters `meow.com`
-   - Configures DNS at their registrar
-   - Now `www.meow.com` shows Project 2's website
+### Two Vercel Projects from One GitHub Repository
 
-## Architecture: Two Vercel Projects from One GitHub Repo
-
-### Project A: Main Application (`cepatbina.com`)
-- Dashboard where users manage projects
+#### Project A: Main Application (`cepatbina.com`)
+- Dashboard for project management
 - Website builder/editor
-- Authentication
-- Preview URLs (`/p/[id]/[slug]`)
+- Project Community page
+- Authentication system
+- Domain management UI
 
-### Project B: Live Sites Server (`*.cepatbina.com` + all custom domains)
-- Only runs `/api/render.js`
-- Receives ALL custom domain traffic
-- Looks up which project owns the domain
-- Returns that project's HTML content
+#### Project B: Live Sites Server (`*.cepatbina.com`)
+- Serves all custom domains
+- Routes domains to correct projects
+- Handles SSL certificates
+- Single serverless function (`/api/render.js`)
 
-## The Domain Routing Magic
+## Database Schema (Supabase)
 
-When someone visits `www.aqil.com`:
+### `projects` table
+```sql
+CREATE TABLE projects (
+  id SERIAL PRIMARY KEY,
+  user_id UUID REFERENCES auth.users(id),
+  title TEXT NOT NULL,
+  code_content TEXT,
+  is_public BOOLEAN DEFAULT true,
+  is_community_visible BOOLEAN DEFAULT false,
+  created_at TIMESTAMP DEFAULT NOW()
+);
+```
+
+### `custom_domains` table
+```sql
+CREATE TABLE custom_domains (
+  id UUID PRIMARY KEY,
+  project_id INTEGER REFERENCES projects(id),
+  user_id UUID REFERENCES auth.users(id),
+  domain_name TEXT UNIQUE,
+  status TEXT, -- pending/active/error
+  verification_token TEXT,
+  dns_instructions JSONB,
+  error_message TEXT,
+  verified_at TIMESTAMP,
+  created_at TIMESTAMP DEFAULT NOW()
+);
+```
+
+## Complete Feature Set
+
+### 1. Dashboard (`/dashboard`)
+- View all your projects
+- Create new projects
+- Edit project content
+- Manage custom domains per project
+- See domain status (pending/active)
+- One-click DNS verification
+- Delete domains
+- Navigate to Community
+
+### 2. Project Community (`/community`)
+- Browse all public projects
+- Search by project name or domain
+- Preview any public project
+- Visit live sites
+- Hide/show your own projects
+- See project creators
+- Filter and discover projects
+
+### 3. Domain Management System
+
+#### Add Domain Flow:
+1. User clicks "Add Domain" on their project
+2. Enters domain name (e.g., `client.com`)
+3. System saves to database with status "pending"
+4. Shows DNS configuration instructions
+5. User configures DNS at their registrar
+6. User clicks "Verify" button
+7. System checks DNS records
+8. If valid, adds to Vercel via API
+9. Updates status to "active"
+10. Domain goes live immediately
+
+#### DNS Configuration Required:
+```
+For root domain:
+A     @     76.76.21.21
+A     @     76.76.21.61
+
+For www subdomain:
+CNAME www   cname.vercel-dns.com
+```
+
+### 4. Vercel API Integration
+- Automatic domain addition when verified
+- Automatic domain removal when deleted
+- No manual Vercel dashboard work needed
+- Token configured in `/src/utils/vercelApi.ts`
+
+## File Structure
+```
+Interactive-link-main/
+├── src/
+│   ├── pages/
+│   │   ├── Dashboard.tsx         # Project management
+│   │   ├── ProjectCommunity.tsx  # Community browser
+│   │   ├── WebsiteBuilder.tsx    # Code editor
+│   │   └── LivePreview.tsx       # Preview component
+│   ├── utils/
+│   │   ├── dnsVerification.ts    # DNS checking
+│   │   ├── vercelApi.ts         # Vercel domain API
+│   │   └── fileManager.ts       # File operations
+│   └── integrations/
+│       └── supabase/
+│           └── client.ts         # Database connection
+├── api/
+│   └── render.js                # Routes domains to projects
+├── vercel.json                  # Main app config
+├── vercel-live.json            # Live sites config
+└── package.json
+```
+
+## The Domain Routing System
+
+When someone visits a custom domain:
 
 ```
-1. Browser requests www.aqil.com
+1. Request to www.aqil.com
    ↓
-2. DNS points to Vercel (76.76.21.21)
+2. DNS resolves to Vercel (76.76.21.21)
    ↓
 3. Vercel routes to Live Sites project
    ↓
 4. /api/render.js executes:
    - Reads hostname: "www.aqil.com"
-   - Queries database: SELECT project_id FROM custom_domains WHERE domain_name = 'www.aqil.com'
+   - Queries: SELECT project_id FROM custom_domains WHERE domain_name = 'www.aqil.com'
    - Gets: project_id = 8
    - Fetches: SELECT code_content FROM projects WHERE id = 8
    - Returns: Project 8's HTML
    ↓
-5. Visitor sees Project 8's website on www.aqil.com
-```
-
-## Database Structure
-
-### `projects` table
-| id | user_id | title | code_content | created_at |
-|----|---------|-------|--------------|------------|
-| 8 | uuid-clientA | aqilxxxx | `<html>...project 1...</html>` | 2025-01-16 |
-| 10 | uuid-clientA | meow | `<html>...project 2...</html>` | 2025-01-17 |
-
-### `custom_domains` table
-| id | project_id | domain_name | status | verified_at |
-|----|------------|-------------|---------|-------------|
-| 1 | 8 | aqil.com | active | 2025-01-16 |
-| 2 | 8 | www.aqil.com | active | 2025-01-16 |
-| 3 | 10 | meow.com | active | 2025-01-17 |
-| 4 | 10 | www.meow.com | active | 2025-01-17 |
-
-## File Structure
-```
-Interactive-link-main/
-├── src/                        # React app (Main Application)
-│   ├── pages/
-│   │   ├── Dashboard.tsx       # Shows all user projects
-│   │   ├── WebsiteBuilder.tsx  # Editor for projects
-│   │   └── LivePreview.tsx     # Preview component
-│   └── integrations/
-│       └── supabase/
-│           └── client.ts       # Hardcoded Supabase credentials
-├── api/
-│   └── render.js              # THE MAGIC FILE - routes domains to projects
-├── vercel.json                # Config for Main App
-├── vercel-live.json           # Config for Live Sites (routes everything to render.js)
-└── package.json
-```
-
-## The Key File: `/api/render.js`
-
-This single file handles ALL custom domains:
-
-```javascript
-export default async function handler(req, res) {
-  // 1. Get the domain being accessed
-  const domain = req.headers.host; // e.g., "www.aqil.com"
-  
-  // 2. Look up which project owns this domain
-  const { data: mapping } = await supabase
-    .from('custom_domains')
-    .select('project_id')
-    .eq('domain_name', domain)
-    .eq('status', 'active')
-    .single();
-    
-  if (!mapping) {
-    return res.status(404).send('Domain not configured');
-  }
-  
-  // 3. Get that project's content
-  const { data: project } = await supabase
-    .from('projects')
-    .select('code_content')
-    .eq('id', mapping.project_id)
-    .single();
-    
-  // 4. Return the project's HTML
-  res.setHeader('Content-Type', 'text/html');
-  res.send(project.code_content);
-}
+5. Visitor sees Project 8's website
 ```
 
 ## Deployment Configuration
 
-### Main App Vercel Project (`cepatbina.com`)
-```json
-{
-  "Framework Preset": "Vite",
-  "Build Command": "npm run build",
-  "Output Directory": "dist"
-}
+### Main App Vercel Project
+- **Name**: `cepatbina` (or your main project name)
+- **Framework**: Vite
+- **Build Command**: `npm run build`
+- **Output Directory**: `dist`
+- **Domains**: `cepatbina.com`, `www.cepatbina.com`
+
+### Live Sites Vercel Project
+- **Name**: `cepatbina-live-sites`
+- **Framework**: Other
+- **Build Command**: `cp vercel-live.json vercel.json`
+- **Output Directory**: `.`
+- **Domains**: `*.cepatbina.com`, plus all customer domains
+
+## Setup Instructions
+
+### 1. Database Setup
+Run these SQL scripts in Supabase:
+```sql
+-- Run create_domain_mappings_table.sql
+-- Run add_community_column.sql
 ```
-Domains configured:
-- `cepatbina.com`
-- `www.cepatbina.com`
 
-### Live Sites Vercel Project (`cepatbina-live-sites`)
-```json
-{
-  "Framework Preset": "Other",
-  "Build Command": "cp vercel-live.json vercel.json",
-  "Output Directory": "."
-}
-```
-Domains configured:
-- `*.cepatbina.com` (wildcard for subdomains)
-- Each client domain added via Vercel API
-
-## Adding a Custom Domain - Complete Flow
-
-### Step 1: User adds domain in dashboard
-User clicks "Add Domain" on their project and enters `aqil.com`
-
-### Step 2: Save to database
+### 2. Configure Vercel API Token
+Edit `/src/utils/vercelApi.ts`:
 ```javascript
-await supabase.from('custom_domains').insert({
-  project_id: 8,
-  domain_name: 'aqil.com',
-  status: 'pending'
-});
+const VERCEL_API_TOKEN = 'your-token-here';
+const LIVE_SITES_PROJECT_ID = 'your-project-id';
 ```
 
-### Step 3: User configures DNS
-User adds at their domain registrar:
-```
-A     @     76.76.21.21
-A     @     76.76.21.61
-CNAME www   cname.vercel-dns.com
-```
+### 3. Deploy Both Projects
+```bash
+# Main app deploys automatically on push to main
 
-### Step 4: Verify DNS (manual process for now)
-Check if DNS points to Vercel correctly
-
-### Step 5: Add domain to Vercel (manual for now)
-In Vercel dashboard for Live Sites project:
-- Settings → Domains → Add Domain
-- Enter: `aqil.com` and `www.aqil.com`
-
-### Step 6: Update database
-```javascript
-await supabase.from('custom_domains')
-  .update({ status: 'active', verified_at: new Date() })
-  .eq('domain_name', 'aqil.com');
+# Live Sites project needs manual setup:
+# 1. Create new Vercel project
+# 2. Import same GitHub repo
+# 3. Configure as shown above
+# 4. Add wildcard domain *.cepatbina.com
 ```
 
-### Step 7: Domain is live!
-Now when anyone visits `aqil.com`, they see Project 8's content
+## Testing the System
 
-## Current Implementation Status
-
-### ✅ WORKING NOW:
-- Main app dashboard at `cepatbina.com`
-- Project creation and editing
-- Preview URLs (`/p/[id]/[slug]`)
-- Two Vercel projects deployed
-- `/api/render.js` serverless function
-- Database tables created
-- Wildcard subdomain (`*.cepatbina.com`) configured
-- Add Domain UI with detailed instructions
-
-### ⚠️ PARTIALLY WORKING:
-- Domain to project routing (render.js ready but needs testing)
-- Database queries for domain lookup
-
-### ❌ TODO - NOT YET IMPLEMENTED:
-- Actually saving domains to database when user clicks "Add Domain"
-- DNS verification system
-- Vercel API integration to add domains programmatically
-- List of configured domains per project
-- Domain removal functionality
-- Domain status tracking (pending/verified/active)
-
-## Testing the Current Setup
-
-### Test 1: Subdomain routing (should work)
-1. Create project with title "test"
+### Test Subdomain Routing
+1. Create project titled "test"
 2. Visit `test.cepatbina.com`
 3. Should show that project's content
 
-### Test 2: Custom domain (manual setup required)
-1. Add domain mapping manually to database:
-```sql
-INSERT INTO custom_domains (project_id, domain_name, status)
-VALUES (8, 'yourdomain.com', 'active');
-```
-2. Add domain to Vercel Live Sites project manually
-3. Configure DNS
-4. Visit domain - should show project content
+### Test Custom Domain
+1. Add domain to project
+2. Configure DNS
+3. Click verify
+4. Visit domain - should work!
 
-## For New AI/Developers Understanding This:
+### Test Community
+1. Create a public project
+2. Visit `/community`
+3. Your project should appear
+4. Others can preview and visit it
 
-### The Core Concept:
-- **Main App** = Where users build websites
-- **Live Sites** = Where websites are served on custom domains
-- **One repository** = Both projects use same code
-- **render.js** = The brain that routes domains to correct projects
+## Current Implementation Status
 
-### The Flow:
-1. User creates project → stored in database with HTML content
-2. User adds custom domain → stored in custom_domains table
-3. Visitor goes to custom domain → hits render.js
-4. render.js looks up domain → finds project → returns HTML
-5. Visitor sees the website on custom domain
+### ✅ FULLY WORKING:
+- Project creation and management
+- Website builder/editor
+- Custom domain addition
+- DNS verification
+- Vercel API integration
+- Domain deletion
+- Project Community
+- Privacy controls (hide/show from community)
+- Live preview
+- Multiple domains per project
+- Domain status tracking
 
-### Critical Files:
-- `/api/render.js` - Routes domains to projects
-- `/src/pages/Dashboard.tsx` - Project management UI
-- `vercel-live.json` - Makes Live Sites project work
-- Database tables - Store project-domain mappings
+### ⚠️ REQUIRES CONFIGURATION:
+- Vercel API token must be added
+- Live Sites project must be created in Vercel
+- DNS must be configured by users
 
-### What Makes It Work:
-The magic is that ALL custom domains point to the same Vercel project (Live Sites), but `/api/render.js` reads the hostname and serves different content based on database lookup. This allows unlimited projects to have custom domains without manual configuration for each one.
+### 🔄 FUTURE ENHANCEMENTS:
+- Automatic DNS provider integration
+- Domain analytics
+- Project templates
+- Collaboration features
+- Version history
+- Custom SSL certificates
+
+## Security Considerations
+
+1. **RLS Policies**: Ensure Row Level Security is enabled on all tables
+2. **Domain Verification**: Always verify DNS before activating domains
+3. **API Token**: Keep Vercel API token secure
+4. **Public Projects**: Users control what's visible in community
+5. **Rate Limiting**: Consider adding rate limits for domain operations
 
 ## Support for 200+ Clients
 
 This architecture supports:
 - ✅ Unlimited projects per user
 - ✅ Multiple domains per project
-- ✅ Automatic SSL via Vercel
-- ✅ Global CDN distribution
-- ✅ No per-domain server configuration
+- ✅ Automatic SSL certificates
+- ✅ Global CDN via Vercel
+- ✅ Community sharing
+- ✅ Privacy controls
 - ✅ Scales to thousands of domains
 
-## Next Development Steps
+## Troubleshooting
 
-1. **Make "Add Domain" button functional**
-   - Save domain to database
-   - Show list of domains per project
+### Domain Not Working
+1. Check DNS propagation (can take 1-48 hours)
+2. Verify domain status is "active" in dashboard
+3. Check if domain is added to Vercel Live Sites project
+4. Ensure SSL certificate is provisioned
 
-2. **Add DNS verification**
-   - Check if DNS points to Vercel
-   - Update domain status
+### Project Not Showing in Community
+1. Check `is_public` is true
+2. Check `is_community_visible` is true
+3. Refresh the page
 
-3. **Integrate Vercel API**
-   - Programmatically add domains to Live Sites project
-   - Remove manual step
+### DNS Verification Failing
+1. Ensure A records point to 76.76.21.21 and 76.76.21.61
+2. Wait for DNS propagation
+3. Try verification again after 1-2 hours
 
-4. **Add domain management UI**
-   - Show all domains for a project
-   - Remove domain functionality
-   - Domain status indicators
+## API Reference
 
-## Environment Variables
+### Domain Management
+- `addDomainToVercel(domain)` - Adds domain to Vercel
+- `removeDomainFromVercel(domain)` - Removes domain
+- `verifyDomain(domain)` - Checks DNS configuration
+- `checkDomainStatus(domain)` - Gets Vercel status
 
-None needed! Supabase credentials are hardcoded in:
-- `/src/integrations/supabase/client.ts`
-- `/api/render.js`
+### Database Operations
+All handled via Supabase client with RLS policies
 
-Both use the same credentials:
-```javascript
-const SUPABASE_URL = "https://mvmwcgnlebbesarvsvxk.supabase.co";
-const SUPABASE_ANON_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...";
-```
+## License & Credits
+
+Built with:
+- React + Vite
+- Supabase
+- Vercel
+- TailwindCSS
+- shadcn/ui
+
+## Getting Started
+
+1. Clone the repository
+2. Install dependencies: `npm install`
+3. Configure Supabase credentials
+4. Add Vercel API token
+5. Deploy to Vercel
+6. Start building!
+
+For support, check the troubleshooting section or open an issue on GitHub.

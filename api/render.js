@@ -36,12 +36,12 @@ export default async function handler(req, res) {
       }
     }
     
-    // Look up custom domain in domain_mappings table
+    // Look up custom domain in custom_domains table
     const { data: mapping } = await supabase
-      .from('domain_mappings')
+      .from('custom_domains')
       .select('project_id')
-      .eq('domain', domain)
-      .eq('verified', true)
+      .eq('domain_name', domain)
+      .eq('status', 'active')
       .single();
     
     if (!mapping) {
