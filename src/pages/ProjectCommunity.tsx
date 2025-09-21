@@ -53,11 +53,13 @@ const ProjectCommunity = () => {
           is_public,
           is_community_visible,
           created_at,
-          user_id,
-          profiles!projects_user_id_fkey(email)
+          user_id
         `)
         .eq('is_public', true)
         .order('created_at', { ascending: false });
+
+      console.log('Fetched projects:', projectsData);
+      console.log('Error:', error);
 
       if (error) {
         console.error('Error fetching projects:', error);
@@ -72,16 +74,12 @@ const ProjectCommunity = () => {
         .in('project_id', projectIds)
         .eq('status', 'active');
 
-      // Filter projects based on community visibility setting
-      // If is_community_visible is null or undefined, treat as visible (for backward compatibility)
-      const visibleProjects = projectsData?.filter(project => 
-        project.is_community_visible !== false
-      ) || [];
+      // Don't filter by is_community_visible - show all public projects
+      const visibleProjects = projectsData || [];
 
       // Combine data
       const projectsWithDomains = visibleProjects.map(project => ({
         ...project,
-        user_email: project.profiles?.email,
         domains: domainsData?.filter(d => d.project_id === project.id) || []
       }));
 
