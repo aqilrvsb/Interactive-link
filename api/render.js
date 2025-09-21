@@ -1,4 +1,9 @@
-import { supabase } from '../src/integrations/supabase/client.js';
+import { createClient } from '@supabase/supabase-js';
+
+const SUPABASE_URL = "https://mvmwcgnlebbesarvsvxk.supabase.co";
+const SUPABASE_ANON_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Im12bXdjZ25sZWJiZXNhcnZzdnhrIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NTcyMTc4NzksImV4cCI6MjA3Mjc5Mzg3OX0.OrQkQdGWmLNPCAYsjiRknXBUEsuegMS82-3b2D2g5ik";
+
+const supabase = createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
 
 export default async function handler(req, res) {
   try {
