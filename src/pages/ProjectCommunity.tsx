@@ -42,7 +42,7 @@ const ProjectCommunity = () => {
 
   const fetchCommunityProjects = async () => {
     try {
-      // First get all public projects that are visible to community
+      // First get all public projects (remove the community_visible filter for now)
       const { data: projectsData, error } = await supabase
         .from('projects')
         .select(`
@@ -57,7 +57,6 @@ const ProjectCommunity = () => {
           profiles!projects_user_id_fkey(email)
         `)
         .eq('is_public', true)
-        .eq('is_community_visible', true)
         .order('created_at', { ascending: false });
 
       if (error) {
@@ -73,12 +72,18 @@ const ProjectCommunity = () => {
         .in('project_id', projectIds)
         .eq('status', 'active');
 
+      // Filter projects based on community visibility setting
+      // If is_community_visible is null or undefined, treat as visible (for backward compatibility)
+      const visibleProjects = projectsData?.filter(project => 
+        project.is_community_visible !== false
+      ) || [];
+
       // Combine data
-      const projectsWithDomains = projectsData?.map(project => ({
+      const projectsWithDomains = visibleProjects.map(project => ({
         ...project,
         user_email: project.profiles?.email,
         domains: domainsData?.filter(d => d.project_id === project.id) || []
-      })) || [];
+      }));
 
       setProjects(projectsWithDomains);
 

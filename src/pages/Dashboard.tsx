@@ -11,7 +11,7 @@ import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigge
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
-import { Plus, Calendar, User, LogOut, Trash2, Edit, Globe, ChevronDown, Eye, FileEdit, Link, Copy, ExternalLink, RefreshCw, CheckCircle, Users } from 'lucide-react';
+import { Plus, Calendar, User, LogOut, Trash2, Edit, Globe, ChevronDown, Eye, FileEdit, Link, Copy, ExternalLink, RefreshCw, CheckCircle, Users, EyeOff, Lock, Unlock } from 'lucide-react';
 import { formatDistanceToNow } from 'date-fns';
 import { FileManager } from '@/utils/fileManager';
 import { toast } from 'sonner';
@@ -31,6 +31,37 @@ const Dashboard = () => {
   const [projectDomains, setProjectDomains] = useState<Record<number, any[]>>({});
   const [isAddingDomain, setIsAddingDomain] = useState(false);
   const [verifyingDomains, setVerifyingDomains] = useState<Set<string>>(new Set());
+  const [togglingVisibility, setTogglingVisibility] = useState<Set<number>>(new Set());
+
+  // Function to toggle project visibility in community
+  const handleToggleCommunityVisibility = async (projectId: number, currentVisibility: boolean) => {
+    setTogglingVisibility(prev => new Set(prev).add(projectId));
+    
+    try {
+      const { error } = await supabase
+        .from('projects')
+        .update({ is_community_visible: !currentVisibility })
+        .eq('id', projectId)
+        .eq('user_id', user?.id);
+
+      if (!error) {
+        toast.success(currentVisibility ? 'Project hidden from community' : 'Project shared with community');
+        // Refresh projects to update the UI
+        await updateProject(projectId, { is_community_visible: !currentVisibility });
+      } else {
+        toast.error('Failed to update visibility');
+      }
+    } catch (err) {
+      console.error('Error toggling visibility:', err);
+      toast.error('Failed to update visibility');
+    } finally {
+      setTogglingVisibility(prev => {
+        const updated = new Set(prev);
+        updated.delete(projectId);
+        return updated;
+      });
+    }
+  };
 
   // Function to verify a domain's DNS
   const handleVerifyDomain = async (domain: any) => {
@@ -182,6 +213,29 @@ const Dashboard = () => {
       setNewTitle(editingProject.title);
     }
   }, [editingProject]); // Added this useEffect to handle editingProject changes
+
+  // Toggle project community visibility
+  const toggleCommunityVisibility = async (project: any) => {
+    try {
+      const newVisibility = !project.is_community_visible;
+      const { error } = await supabase
+        .from('projects')
+        .update({ is_community_visible: newVisibility })
+        .eq('id', project.id)
+        .eq('user_id', user?.id);
+
+      if (!error) {
+        toast.success(newVisibility ? 'Project shared with community' : 'Project hidden from community');
+        // Refresh projects to update UI
+        window.location.reload();
+      } else {
+        toast.error('Failed to update visibility');
+      }
+    } catch (err) {
+      console.error('Error:', err);
+      toast.error('Failed to update visibility');
+    }
+  };
 
   const handleSignOut = async () => {
     await signOut();
@@ -336,7 +390,7 @@ const Dashboard = () => {
               <Card key={project.id} className="hover:shadow-lg transition-shadow">
                 <CardHeader>
                   <div className="flex justify-between items-start">
-                    <div>
+                    <div className="flex-1">
                       <CardTitle className="text-lg mb-1">{project.title}</CardTitle>
                       {project.description && (
                         <CardDescription className="line-clamp-2">
@@ -344,24 +398,45 @@ const Dashboard = () => {
                         </CardDescription>
                       )}
                     </div>
-                    <div className="flex gap-1">
+                    <div className="flex items-center gap-1">
                       <Button
                         variant="ghost"
                         size="sm"
-                        onClick={() => {
-                          setEditingProject(project);
-                          setNewTitle(project.title);
-                        }}
+                        onClick={() => toggleCommunityVisibility(project)}
+                        title={project.is_community_visible ? "Hide from community" : "Share with community"}
+                        className="h-8 w-8 p-0"
                       >
-                        <FileEdit className="h-4 w-4" />
+                        {project.is_community_visible ? (
+                          <Eye className="h-4 w-4" />
+                        ) : (
+                          <EyeOff className="h-4 w-4 text-muted-foreground" />
+                        )}
                       </Button>
-                      <Button
-                        variant="ghost"
-                        size="sm"
-                        onClick={() => handleDeleteProject(project.id)}
-                      >
-                        <Trash2 className="h-4 w-4 text-destructive" />
-                      </Button>
+                      <DropdownMenu>
+                        <DropdownMenuTrigger asChild>
+                          <Button variant="ghost" size="sm" className="h-8 w-8 p-0">
+                            <Edit className="h-4 w-4" />
+                          </Button>
+                        </DropdownMenuTrigger>
+                        <DropdownMenuContent align="end">
+                          <DropdownMenuItem
+                            onClick={() => {
+                              setEditingProject(project);
+                              setNewTitle(project.title);
+                            }}
+                          >
+                            <Edit className="h-4 w-4 mr-2" />
+                            Rename
+                          </DropdownMenuItem>
+                          <DropdownMenuItem
+                            onClick={() => handleDeleteProject(project.id)}
+                            className="text-destructive"
+                          >
+                            <Trash2 className="h-4 w-4 mr-2" />
+                            Delete
+                          </DropdownMenuItem>
+                        </DropdownMenuContent>
+                      </DropdownMenu>
                     </div>
                   </div>
                 </CardHeader>
