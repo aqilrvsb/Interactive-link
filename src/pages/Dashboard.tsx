@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '@/contexts/AuthContext';
 import { useProjects } from '@/hooks/useProjects';
@@ -152,26 +152,36 @@ const Dashboard = () => {
     const fetchProjectDomains = async () => {
       if (!projects || projects.length === 0) return;
       
-      const projectIds = projects.map((p: any) => p.id);
-      const { data, error } = await supabase
-        .from('custom_domains')
-        .select('*')
-        .in('project_id', projectIds);
-      
-      if (data && !error) {
-        const domainsByProject = data.reduce((acc: any, domain: any) => {
-          if (!acc[domain.project_id]) {
-            acc[domain.project_id] = [];
-          }
-          acc[domain.project_id].push(domain);
-          return acc;
-        }, {});
-        setProjectDomains(domainsByProject);
+      try {
+        const projectIds = projects.map((p: any) => p.id);
+        const { data, error } = await supabase
+          .from('custom_domains')
+          .select('*')
+          .in('project_id', projectIds);
+        
+        if (data && !error) {
+          const domainsByProject = data.reduce((acc: any, domain: any) => {
+            if (!acc[domain.project_id]) {
+              acc[domain.project_id] = [];
+            }
+            acc[domain.project_id].push(domain);
+            return acc;
+          }, {});
+          setProjectDomains(domainsByProject);
+        }
+      } catch (err) {
+        console.error('Error fetching domains:', err);
       }
     };
 
     fetchProjectDomains();
-  }, [projects]);
+  }, [projects]); // Added projects dependency
+
+  useEffect(() => {
+    if (editingProject) {
+      setNewTitle(editingProject.title);
+    }
+  }, [editingProject]); // Added this useEffect to handle editingProject changes
 
   const handleSignOut = async () => {
     await signOut();
