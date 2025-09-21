@@ -315,11 +315,11 @@ const Dashboard = () => {
 
       {/* Domain Dialog - Railway Style */}
       <Dialog open={!!domainProject} onOpenChange={(open) => !open && setDomainProject(null)}>
-        <DialogContent className="sm:max-w-[500px]">
+        <DialogContent className="sm:max-w-[600px]">
           <DialogHeader>
             <DialogTitle>Add Custom Domain</DialogTitle>
             <DialogDescription>
-              Connect your custom domain to this project
+              Connect your custom domain to project: {domainProject?.title}
             </DialogDescription>
           </DialogHeader>
           <div className="space-y-4 py-4">
@@ -329,51 +329,126 @@ const Dashboard = () => {
                 id="domain"
                 value={customDomain}
                 onChange={(e) => setCustomDomain(e.target.value)}
-                placeholder="example.com"
+                placeholder="yourdomain.com or subdomain.yourdomain.com"
                 className="mt-2"
               />
+              <p className="text-xs text-muted-foreground mt-1">
+                Enter your domain without http:// or https://
+              </p>
             </div>
             
             {customDomain && (
-              <div className="space-y-2 p-4 bg-muted rounded-lg">
-                <h4 className="font-medium text-sm">Configure DNS Records</h4>
-                <p className="text-xs text-muted-foreground mb-3">
-                  To finish setting up your custom domain, add the following DNS records to {customDomain}
-                </p>
-                <div className="space-y-2">
-                  <div className="grid grid-cols-3 gap-2 text-sm">
-                    <div className="font-medium">Type</div>
-                    <div className="font-medium">Name</div>
-                    <div className="font-medium">Value</div>
-                  </div>
-                  <div className="grid grid-cols-3 gap-2 text-sm">
-                    <div className="font-mono bg-background p-2 rounded">CNAME</div>
-                    <div className="font-mono bg-background p-2 rounded">@</div>
-                    <div className="font-mono bg-background p-2 rounded flex items-center gap-1">
-                      <span className="truncate text-xs">{window.location.host}</span>
-                      <Button
-                        variant="ghost"
-                        size="sm"
-                        className="h-5 w-5 p-0 ml-auto"
-                        onClick={() => {
-                          navigator.clipboard.writeText(window.location.host);
-                          toast.success('Copied!');
-                        }}
-                      >
-                        <Copy className="h-3 w-3" />
-                      </Button>
+              <div className="space-y-4">
+                <div className="space-y-2 p-4 bg-blue-50 dark:bg-blue-950 border border-blue-200 dark:border-blue-800 rounded-lg">
+                  <h4 className="font-semibold text-sm flex items-center gap-2">
+                    <span className="text-lg">📋</span> Step 1: Configure DNS Records
+                  </h4>
+                  <p className="text-xs text-muted-foreground">
+                    Add these DNS records at your domain provider (Namecheap, GoDaddy, Cloudflare, etc.)
+                  </p>
+                  
+                  <div className="space-y-3 mt-3">
+                    {/* Option for root domain */}
+                    <div className="p-3 bg-background rounded border">
+                      <p className="text-xs font-semibold mb-2">For root domain ({customDomain}):</p>
+                      <div className="space-y-1 font-mono text-xs">
+                        <div className="grid grid-cols-3 gap-2">
+                          <span className="text-muted-foreground">Type:</span>
+                          <span className="text-muted-foreground">Name:</span>
+                          <span className="text-muted-foreground">Value:</span>
+                        </div>
+                        <div className="grid grid-cols-3 gap-2">
+                          <span className="bg-muted px-2 py-1 rounded">A</span>
+                          <span className="bg-muted px-2 py-1 rounded">@</span>
+                          <span className="bg-muted px-2 py-1 rounded select-all">76.76.21.21</span>
+                        </div>
+                        <div className="grid grid-cols-3 gap-2">
+                          <span className="bg-muted px-2 py-1 rounded">A</span>
+                          <span className="bg-muted px-2 py-1 rounded">@</span>
+                          <span className="bg-muted px-2 py-1 rounded select-all">76.76.21.61</span>
+                        </div>
+                      </div>
+                    </div>
+                    
+                    {/* Option for www subdomain */}
+                    <div className="p-3 bg-background rounded border">
+                      <p className="text-xs font-semibold mb-2">For www subdomain (www.{customDomain}):</p>
+                      <div className="space-y-1 font-mono text-xs">
+                        <div className="grid grid-cols-3 gap-2">
+                          <span className="text-muted-foreground">Type:</span>
+                          <span className="text-muted-foreground">Name:</span>
+                          <span className="text-muted-foreground">Value:</span>
+                        </div>
+                        <div className="grid grid-cols-3 gap-2">
+                          <span className="bg-muted px-2 py-1 rounded">CNAME</span>
+                          <span className="bg-muted px-2 py-1 rounded">www</span>
+                          <span className="bg-muted px-2 py-1 rounded select-all">cname.vercel-dns.com</span>
+                        </div>
+                      </div>
                     </div>
                   </div>
                 </div>
-                <p className="text-xs text-muted-foreground mt-3">
-                  * DNS changes can take up to 72 hours to propagate worldwide
-                </p>
+                
+                <div className="space-y-2 p-4 bg-yellow-50 dark:bg-yellow-950 border border-yellow-200 dark:border-yellow-800 rounded-lg">
+                  <h4 className="font-semibold text-sm flex items-center gap-2">
+                    <span className="text-lg">⏱️</span> Step 2: Wait for DNS Propagation
+                  </h4>
+                  <ul className="text-xs space-y-1 text-muted-foreground">
+                    <li>• DNS changes typically take 1-2 hours to propagate</li>
+                    <li>• In some cases, it may take up to 48 hours</li>
+                    <li>• Check status at: <span className="text-blue-600 dark:text-blue-400">whatsmydns.net</span></li>
+                  </ul>
+                </div>
+                
+                <div className="space-y-2 p-4 bg-green-50 dark:bg-green-950 border border-green-200 dark:border-green-800 rounded-lg">
+                  <h4 className="font-semibold text-sm flex items-center gap-2">
+                    <span className="text-lg">✅</span> Step 3: Verify Domain
+                  </h4>
+                  <p className="text-xs text-muted-foreground">
+                    Once DNS is configured, click "Add Domain" below. SSL certificate will be automatically provisioned.
+                  </p>
+                </div>
+                
+                <div className="p-3 bg-muted rounded-lg">
+                  <p className="text-xs font-semibold mb-2">Need help? Common domain providers:</p>
+                  <div className="grid grid-cols-2 gap-2 text-xs">
+                    <div>
+                      <strong>Namecheap:</strong> Domain List → Manage → Advanced DNS
+                    </div>
+                    <div>
+                      <strong>GoDaddy:</strong> My Products → DNS → Manage
+                    </div>
+                    <div>
+                      <strong>Cloudflare:</strong> Select domain → DNS tab
+                    </div>
+                    <div>
+                      <strong>Hostinger:</strong> Domains → Manage → DNS
+                    </div>
+                  </div>
+                </div>
               </div>
             )}
           </div>
           <DialogFooter>
-            <Button variant="outline" onClick={() => setDomainProject(null)}>
-              Dismiss
+            <Button variant="outline" onClick={() => {
+              setDomainProject(null);
+              setCustomDomain('');
+            }}>
+              Cancel
+            </Button>
+            <Button 
+              onClick={() => {
+                if (customDomain) {
+                  toast.info('Domain configuration started! Please add the DNS records as shown above.');
+                  // Here you would save the domain to your database
+                  // and start the verification process
+                  setDomainProject(null);
+                  setCustomDomain('');
+                }
+              }}
+              disabled={!customDomain}
+            >
+              Add Domain
             </Button>
           </DialogFooter>
         </DialogContent>
