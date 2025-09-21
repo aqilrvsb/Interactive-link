@@ -17,6 +17,7 @@ import { FileManager } from '@/utils/fileManager';
 import { toast } from 'sonner';
 import { supabase } from '@/integrations/supabase/client';
 import { verifyDomain } from '@/utils/dnsVerification';
+import { addDomainToVercel, removeDomainFromVercel } from '@/utils/vercelApi';
 
 const Dashboard = () => {
   const { user, signOut } = useAuth();
@@ -39,6 +40,23 @@ const Dashboard = () => {
       const isValid = await verifyDomain(domain.domain_name);
       
       if (isValid) {
+        // Add domain to Vercel
+        toast.info(`Adding ${domain.domain_name} to Vercel...`);
+        const vercelResult = await addDomainToVercel(domain.domain_name);
+        
+        if (!vercelResult.success) {
+          // If domain already exists in Vercel, that's OK
+          if (!vercelResult.error?.includes('already')) {
+            toast.error(`Vercel: ${vercelResult.error}`);
+            setVerifyingDomains(prev => {
+              const updated = new Set(prev);
+              updated.delete(domain.id);
+              return updated;
+            });
+            return;
+          }
+        }
+        
         // Update domain status to active
         const { error } = await supabase
           .from('custom_domains')
@@ -50,7 +68,7 @@ const Dashboard = () => {
           .eq('id', domain.id);
         
         if (!error) {
-          toast.success(`Domain ${domain.domain_name} verified successfully!`);
+          toast.success(`Domain ${domain.domain_name} verified and activated!`);
           
           // Update local state
           setProjectDomains(prev => {
@@ -84,6 +102,48 @@ const Dashboard = () => {
         updated.delete(domain.id);
         return updated;
       });
+    }
+  };
+
+  // Function to remove a domain
+  const handleRemoveDomain = async (domain: any) => {
+    if (!confirm(`Are you sure you want to remove ${domain.domain_name}?`)) {
+      return;
+    }
+    
+    try {
+      // Remove from Vercel if active
+      if (domain.status === 'active') {
+        toast.info('Removing domain from Vercel...');
+        const vercelResult = await removeDomainFromVercel(domain.domain_name);
+        if (!vercelResult.success && !vercelResult.error?.includes('not found')) {
+          toast.error(`Vercel: ${vercelResult.error}`);
+        }
+      }
+      
+      // Remove from database
+      const { error } = await supabase
+        .from('custom_domains')
+        .delete()
+        .eq('id', domain.id);
+      
+      if (!error) {
+        toast.success(`Domain ${domain.domain_name} removed successfully`);
+        
+        // Update local state
+        setProjectDomains(prev => {
+          const updated = { ...prev };
+          if (updated[domain.project_id]) {
+            updated[domain.project_id] = updated[domain.project_id].filter((d: any) => d.id !== domain.id);
+          }
+          return updated;
+        });
+      } else {
+        toast.error('Failed to remove domain');
+      }
+    } catch (error) {
+      console.error('Error removing domain:', error);
+      toast.error('Failed to remove domain');
     }
   };
 
@@ -364,7 +424,7 @@ const Dashboard = () => {
                     {projectDomains[project.id] && projectDomains[project.id].length > 0 && (
                       <div className="mt-2 space-y-1">
                         {projectDomains[project.id].map((domain: any) => (
-                          <div key={domain.id} className="flex items-center justify-between text-xs">
+                          <div key={domain.id} className="flex items-center justify-between text-xs group">
                             <div className="flex items-center gap-2">
                               <Globe className="h-3 w-3 text-muted-foreground" />
                               <span className="font-mono">{domain.domain_name}</span>
@@ -404,6 +464,15 @@ const Dashboard = () => {
                                   <ExternalLink className="h-3 w-3" />
                                 </Button>
                               )}
+                              <Button
+                                variant="ghost"
+                                size="sm"
+                                className="h-5 w-5 p-0 opacity-0 group-hover:opacity-100 transition-opacity"
+                                onClick={() => handleRemoveDomain(domain)}
+                                title="Remove domain"
+                              >
+                                <Trash2 className="h-3 w-3 text-destructive" />
+                              </Button>
                             </div>
                           </div>
                         ))}
