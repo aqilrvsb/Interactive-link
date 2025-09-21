@@ -5,6 +5,7 @@ import { useProjects } from '@/hooks/useProjects';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
+import { Badge } from '@/components/ui/badge';
 import { Skeleton } from '@/components/ui/skeleton';
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from '@/components/ui/dropdown-menu';
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog';
@@ -14,6 +15,7 @@ import { Plus, Calendar, User, LogOut, Trash2, Edit, Globe, ChevronDown, Eye, Fi
 import { formatDistanceToNow } from 'date-fns';
 import { FileManager } from '@/utils/fileManager';
 import { toast } from 'sonner';
+import { supabase } from '@/integrations/supabase/client';
 
 const Dashboard = () => {
   const { user, signOut } = useAuth();
@@ -24,6 +26,34 @@ const Dashboard = () => {
   const [isRenaming, setIsRenaming] = useState(false);
   const [domainProject, setDomainProject] = useState<any>(null);
   const [customDomain, setCustomDomain] = useState('');
+  const [projectDomains, setProjectDomains] = useState<Record<number, any[]>>({});
+  const [isAddingDomain, setIsAddingDomain] = useState(false);
+
+  // Fetch existing domains for all projects
+  useEffect(() => {
+    const fetchProjectDomains = async () => {
+      if (!projects || projects.length === 0) return;
+      
+      const projectIds = projects.map((p: any) => p.id);
+      const { data, error } = await supabase
+        .from('custom_domains')
+        .select('*')
+        .in('project_id', projectIds);
+      
+      if (data && !error) {
+        const domainsByProject = data.reduce((acc: any, domain: any) => {
+          if (!acc[domain.project_id]) {
+            acc[domain.project_id] = [];
+          }
+          acc[domain.project_id].push(domain);
+          return acc;
+        }, {});
+        setProjectDomains(domainsByProject);
+      }
+    };
+
+    fetchProjectDomains();
+  }, [projects]);
 
   const handleSignOut = async () => {
     await signOut();
@@ -252,7 +282,7 @@ const Dashboard = () => {
                   
                   {/* Domain Section - Railway Style */}
                   <div className="mt-4 pt-4 border-t">
-                    <div className="flex items-center justify-between text-sm">
+                    <div className="flex items-center justify-between text-sm mb-2">
                       <div className="flex items-center gap-2">
                         <Link className="h-4 w-4 text-muted-foreground" />
                         <span className="text-muted-foreground text-xs truncate max-w-[250px]" title={`${window.location.host}/${project.id}/${project.title.toLowerCase().replace(/[^a-z0-9]+/g, '-')}`}>
@@ -271,6 +301,37 @@ const Dashboard = () => {
                         Add Domain
                       </Button>
                     </div>
+                    
+                    {/* Show existing custom domains */}
+                    {projectDomains[project.id] && projectDomains[project.id].length > 0 && (
+                      <div className="mt-2 space-y-1">
+                        {projectDomains[project.id].map((domain: any) => (
+                          <div key={domain.id} className="flex items-center justify-between text-xs">
+                            <div className="flex items-center gap-2">
+                              <Globe className="h-3 w-3 text-muted-foreground" />
+                              <span className="font-mono">{domain.domain_name}</span>
+                              <Badge 
+                                variant={domain.status === 'active' ? 'default' : 
+                                        domain.status === 'pending' ? 'secondary' : 'destructive'}
+                                className="text-[10px] px-1.5 py-0"
+                              >
+                                {domain.status}
+                              </Badge>
+                            </div>
+                            {domain.status === 'active' && (
+                              <Button
+                                variant="ghost"
+                                size="sm"
+                                className="h-5 w-5 p-0"
+                                onClick={() => window.open(`https://${domain.domain_name}`, '_blank')}
+                              >
+                                <ExternalLink className="h-3 w-3" />
+                              </Button>
+                            )}
+                          </div>
+                        ))}
+                      </div>
+                    )}
                   </div>
                 </CardContent>
               </Card>
@@ -437,18 +498,97 @@ const Dashboard = () => {
               Cancel
             </Button>
             <Button 
-              onClick={() => {
-                if (customDomain) {
-                  toast.info('Domain configuration started! Please add the DNS records as shown above.');
-                  // Here you would save the domain to your database
-                  // and start the verification process
-                  setDomainProject(null);
-                  setCustomDomain('');
+              onClick={async () => {
+                if (customDomain && domainProject) {
+                  setIsAddingDomain(true);
+                  
+                  try {
+                    // Normalize domain (remove http://, trailing slashes, etc.)
+                    let normalizedDomain = customDomain.toLowerCase().trim();
+                    normalizedDomain = normalizedDomain.replace(/^https?:\/\//, '');
+                    normalizedDomain = normalizedDomain.replace(/\/$/, '');
+                    
+                    // Check if domain already exists
+                    const { data: existingDomain } = await supabase
+                      .from('custom_domains')
+                      .select('id')
+                      .eq('domain_name', normalizedDomain)
+                      .single();
+                    
+                    if (existingDomain) {
+                      toast.error('This domain is already registered');
+                      setIsAddingDomain(false);
+                      return;
+                    }
+                    
+                    // Generate verification token
+                    const verificationToken = `verify_${Math.random().toString(36).substring(7)}`;
+                    
+                    // Save domain to database
+                    const { data, error } = await supabase
+                      .from('custom_domains')
+                      .insert({
+                        project_id: domainProject.id,
+                        user_id: user?.id,
+                        domain_name: normalizedDomain,
+                        status: 'pending',
+                        verification_token: verificationToken,
+                        dns_instructions: {
+                          type: 'A',
+                          records: [
+                            { type: 'A', name: '@', value: '76.76.21.21' },
+                            { type: 'A', name: '@', value: '76.76.21.61' }
+                          ],
+                          cname: { type: 'CNAME', name: 'www', value: 'cname.vercel-dns.com' }
+                        }
+                      })
+                      .select()
+                      .single();
+                    
+                    if (error) {
+                      console.error('Error saving domain:', error);
+                      toast.error('Failed to add domain');
+                    } else {
+                      toast.success('Domain added successfully! Please configure DNS as shown.');
+                      
+                      // Update local state
+                      setProjectDomains(prev => ({
+                        ...prev,
+                        [domainProject.id]: [...(prev[domainProject.id] || []), data]
+                      }));
+                      
+                      // Also save www version if main domain
+                      if (!normalizedDomain.startsWith('www.')) {
+                        await supabase
+                          .from('custom_domains')
+                          .insert({
+                            project_id: domainProject.id,
+                            user_id: user?.id,
+                            domain_name: `www.${normalizedDomain}`,
+                            status: 'pending',
+                            verification_token: verificationToken,
+                            dns_instructions: {
+                              type: 'CNAME',
+                              records: [
+                                { type: 'CNAME', name: 'www', value: 'cname.vercel-dns.com' }
+                              ]
+                            }
+                          });
+                      }
+                    }
+                  } catch (err) {
+                    console.error('Error:', err);
+                    toast.error('Something went wrong');
+                  } finally {
+                    setIsAddingDomain(false);
+                    setDomainProject(null);
+                    setCustomDomain('');
+                  }
                 }
               }}
-              disabled={!customDomain}
+              disabled={!customDomain || isAddingDomain}
             >
-              Add Domain
+              {isAddingDomain ? 'Adding...' : 'Add Domain'}
             </Button>
           </DialogFooter>
         </DialogContent>
