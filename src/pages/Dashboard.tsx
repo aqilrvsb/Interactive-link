@@ -11,11 +11,12 @@ import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigge
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
-import { Plus, Calendar, User, LogOut, Trash2, Edit, Globe, ChevronDown, Eye, FileEdit, Link, Copy, ExternalLink } from 'lucide-react';
+import { Plus, Calendar, User, LogOut, Trash2, Edit, Globe, ChevronDown, Eye, FileEdit, Link, Copy, ExternalLink, RefreshCw, CheckCircle } from 'lucide-react';
 import { formatDistanceToNow } from 'date-fns';
 import { FileManager } from '@/utils/fileManager';
 import { toast } from 'sonner';
 import { supabase } from '@/integrations/supabase/client';
+import { verifyDomain } from '@/utils/dnsVerification';
 
 const Dashboard = () => {
   const { user, signOut } = useAuth();
@@ -28,6 +29,63 @@ const Dashboard = () => {
   const [customDomain, setCustomDomain] = useState('');
   const [projectDomains, setProjectDomains] = useState<Record<number, any[]>>({});
   const [isAddingDomain, setIsAddingDomain] = useState(false);
+  const [verifyingDomains, setVerifyingDomains] = useState<Set<string>>(new Set());
+
+  // Function to verify a domain's DNS
+  const handleVerifyDomain = async (domain: any) => {
+    setVerifyingDomains(prev => new Set(prev).add(domain.id));
+    
+    try {
+      const isValid = await verifyDomain(domain.domain_name);
+      
+      if (isValid) {
+        // Update domain status to active
+        const { error } = await supabase
+          .from('custom_domains')
+          .update({ 
+            status: 'active',
+            verified_at: new Date().toISOString(),
+            error_message: null
+          })
+          .eq('id', domain.id);
+        
+        if (!error) {
+          toast.success(`Domain ${domain.domain_name} verified successfully!`);
+          
+          // Update local state
+          setProjectDomains(prev => {
+            const updated = { ...prev };
+            if (updated[domain.project_id]) {
+              updated[domain.project_id] = updated[domain.project_id].map((d: any) =>
+                d.id === domain.id ? { ...d, status: 'active', verified_at: new Date().toISOString() } : d
+              );
+            }
+            return updated;
+          });
+        }
+      } else {
+        toast.error(`DNS not configured correctly for ${domain.domain_name}. Please check your DNS settings.`);
+        
+        // Update error message
+        await supabase
+          .from('custom_domains')
+          .update({ 
+            error_message: 'DNS verification failed. Please ensure DNS records point to Vercel.',
+            updated_at: new Date().toISOString()
+          })
+          .eq('id', domain.id);
+      }
+    } catch (error) {
+      console.error('Verification error:', error);
+      toast.error('Failed to verify domain');
+    } finally {
+      setVerifyingDomains(prev => {
+        const updated = new Set(prev);
+        updated.delete(domain.id);
+        return updated;
+      });
+    }
+  };
 
   // Fetch existing domains for all projects
   useEffect(() => {
@@ -318,16 +376,35 @@ const Dashboard = () => {
                                 {domain.status}
                               </Badge>
                             </div>
-                            {domain.status === 'active' && (
-                              <Button
-                                variant="ghost"
-                                size="sm"
-                                className="h-5 w-5 p-0"
-                                onClick={() => window.open(`https://${domain.domain_name}`, '_blank')}
-                              >
-                                <ExternalLink className="h-3 w-3" />
-                              </Button>
-                            )}
+                            <div className="flex items-center gap-1">
+                              {domain.status === 'pending' && (
+                                <Button
+                                  variant="ghost"
+                                  size="sm"
+                                  className="h-5 w-5 p-0"
+                                  onClick={() => handleVerifyDomain(domain)}
+                                  disabled={verifyingDomains.has(domain.id)}
+                                  title="Verify DNS"
+                                >
+                                  {verifyingDomains.has(domain.id) ? (
+                                    <RefreshCw className="h-3 w-3 animate-spin" />
+                                  ) : (
+                                    <CheckCircle className="h-3 w-3" />
+                                  )}
+                                </Button>
+                              )}
+                              {domain.status === 'active' && (
+                                <Button
+                                  variant="ghost"
+                                  size="sm"
+                                  className="h-5 w-5 p-0"
+                                  onClick={() => window.open(`https://${domain.domain_name}`, '_blank')}
+                                  title="Visit site"
+                                >
+                                  <ExternalLink className="h-3 w-3" />
+                                </Button>
+                              )}
+                            </div>
                           </div>
                         ))}
                       </div>
