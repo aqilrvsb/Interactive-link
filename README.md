@@ -1,171 +1,292 @@
-# Interactive Link - Web Development Platform
+# CepatBina - Multi-Tenant Website Builder with Custom Domain Support
 
-A modern web-based code editor and website builder with real-time preview, project management, and cloud deployment capabilities.
+## System Architecture Overview
 
-## 🚀 Features
+This project consists of TWO Vercel deployments from ONE GitHub repository:
 
-- **Code Editor**: Monaco-based editor with syntax highlighting
-- **Real-time Preview**: See your HTML/CSS/JS changes instantly
-- **Project Management**: Save, organize, and manage multiple projects
-- **Version Control**: Track changes with automatic versioning
-- **Cloud Storage**: Supabase integration for data persistence
-- **User Authentication**: Secure login and user-specific workspaces
-- **File Management**: Upload and manage project assets
-- **Public Sharing**: Generate shareable links for your projects
+### Project A: Main Application (cepatbina.com)
+- **Purpose**: Dashboard, authentication, website builder/editor
+- **Domain**: cepatbina.com, www.cepatbina.com
+- **Tech Stack**: React (Vite), Supabase, TailwindCSS
+- **Deployment**: Standard Vercel deployment with React build
 
-## 🛠️ Tech Stack
+### Project B: Live Sites Server (*.cepatbina.com)
+- **Purpose**: Serves customer websites on custom domains
+- **Domains**: *.cepatbina.com, plus all customer custom domains
+- **Tech Stack**: Vercel Serverless Function (Node.js)
+- **Deployment**: Same repo, but only uses `/api/render.js`
 
-- **Frontend**: React 18 + TypeScript
-- **UI Framework**: shadcn/ui + Tailwind CSS
-- **Editor**: Monaco Editor
-- **Backend**: Supabase (Auth, Database, Storage)
-- **Build Tool**: Vite
-- **Deployment**: Railway (auto-deploy on push)
+## Database Structure
 
-## 📋 Prerequisites
+### Tables in Supabase:
 
-- Node.js 18+ and npm
-- Git
-- Supabase account (for backend services)
-
-## 🏃‍♂️ Quick Start
-
-### Local Development
-
-```bash
-# Clone the repository
-git clone https://github.com/aqilrvsb/Interactive-link.git
-cd Interactive-link-main
-
-# Install dependencies
-npm install
-
-# Start development server
-npm run dev
+#### 1. `projects` table (existing)
+```sql
+- id: integer (primary key)
+- user_id: uuid (references auth.users)
+- title: text
+- code_content: text (HTML/CSS/JS content)
+- is_public: boolean
+- created_at: timestamp
 ```
 
-The app will be available at `http://localhost:8080`
-
-### Production Build
-
-```bash
-# Build for production
-npm run build
-
-# Preview production build
-npm run preview
+#### 2. `custom_domains` table (for domain mapping)
+```sql
+- id: uuid (primary key)
+- project_id: integer (references projects.id)
+- user_id: uuid (references auth.users)
+- domain_name: text (e.g., "client.com" or "project.cepatbina.com")
+- status: text ("pending", "verified", "active")
+- verification_token: text
+- dns_instructions: jsonb
+- error_message: text
+- verified_at: timestamp
+- created_at: timestamp
+- updated_at: timestamp
 ```
 
-## 🔧 Configuration
-
-### Environment Variables
-
-Create a `.env` file in the root directory:
-
-```env
-VITE_SUPABASE_PROJECT_ID="your_project_id"
-VITE_SUPABASE_PUBLISHABLE_KEY="your_anon_key"
-VITE_SUPABASE_URL="https://your-project.supabase.co"
-DATABASE_URL="postgresql://connection_string"
-```
-
-### Supabase Setup
-
-1. Create a new Supabase project
-2. Run the SQL migrations from `FINAL_SQL_FOR_SUPABASE.sql`
-3. Create storage bucket named `project-files`
-4. Set up RLS policies as needed
-
-## 🚢 Deployment
-
-### Railway Deployment (Automatic)
-
-This project is configured for automatic deployment on Railway:
-
-1. Push changes to the main branch
-2. Railway automatically builds and deploys
-3. Access your app at your Railway URL
-
-### Manual Deployment
-
-The project includes a `railway.json` configuration:
-- Build command: `npm install && npm run build`
-- Start command: `npm run preview`
-
-## 📁 Project Structure
+## File Structure
 
 ```
 Interactive-link-main/
-├── src/
-│   ├── components/     # React components
-│   ├── pages/          # Page components
-│   ├── lib/            # Utilities and helpers
-│   └── hooks/          # Custom React hooks
-├── public/             # Static assets
-├── dist/               # Production build output
-└── supabase/          # Database migrations
+├── src/                     # React application (Main App)
+│   ├── pages/
+│   │   ├── Dashboard.tsx    # Project management
+│   │   ├── WebsiteBuilder.tsx # Code editor
+│   │   └── LivePreview.tsx  # Preview component
+│   └── integrations/
+│       └── supabase/
+│           └── client.ts    # Supabase connection (hardcoded)
+├── api/
+│   └── render.js           # Serverless function for Live Sites
+├── vercel.json             # Config for Main App
+├── vercel-live.json        # Config for Live Sites
+└── package.json
 ```
 
-## 🔑 Key Features Explained
+## How Domain Routing Works
 
-### Website Builder
-- Full-featured HTML/CSS/JS editor
-- Live preview with hot reload
-- Save projects to cloud
-- Version history tracking
+### 1. Subdomain Request Flow (e.g., project1.cepatbina.com)
+```
+User visits project1.cepatbina.com
+↓
+DNS resolves to Vercel (via *.cepatbina.com wildcard)
+↓
+Vercel routes to Live Sites project
+↓
+/api/render.js reads hostname
+↓
+Extracts subdomain: "project1"
+↓
+Queries database: Find project where title matches "project1"
+↓
+Returns project HTML content
+```
 
-### Project Management
-- Create unlimited projects
-- Organize with folders
-- Search and filter projects
-- Share projects publicly
+### 2. Custom Domain Request Flow (e.g., client.com)
+```
+User visits client.com
+↓
+DNS (CNAME) points to cepatbina.com
+↓
+Vercel routes to Live Sites project
+↓
+/api/render.js reads hostname: "client.com"
+↓
+Queries custom_domains table for matching domain
+↓
+Gets project_id from mapping
+↓
+Fetches project content from projects table
+↓
+Returns project HTML content
+```
 
-### User System
-- Secure authentication
-- User profiles with sequential IDs
-- Personal workspaces
-- Project ownership
+## Deployment Configuration
 
-## 🐛 Troubleshooting
+### Main App (cepatbina.com) - Vercel Project Settings:
+```
+Framework Preset: Vite
+Build Command: npm run build
+Output Directory: dist
+Install Command: npm install
+```
 
-### Build Issues
-- Ensure Node.js 18+ is installed
-- Clear `node_modules` and reinstall: `rm -rf node_modules && npm install`
-- Check for TypeScript errors: `npm run lint`
+### Live Sites (*.cepatbina.com) - Vercel Project Settings:
+```
+Framework Preset: Other
+Build Command: cp vercel-live.json vercel.json
+Output Directory: .
+Install Command: npm install
+```
 
-### Database Connection
-- Verify Supabase credentials in `.env`
-- Check if tables are created (run migrations)
-- Ensure RLS policies allow operations
+## API Endpoints
 
-## 📝 Recent Updates
+### /api/render.js (Live Sites Project)
+The only endpoint in the Live Sites project. Handles ALL domain requests:
 
-- ✅ Fixed async/await build errors in WebsiteBuilder.tsx
-- ✅ Removed ngrok dependency - app runs directly on localhost
-- ✅ Updated to use port 8080 for development
-- ✅ Improved error handling in file operations
+```javascript
+// Reads hostname from request
+// Checks if subdomain of cepatbina.com → query by project title
+// Else → query custom_domains table
+// Returns HTML content or 404
+```
 
-## 🤝 Contributing
+## Adding a Custom Domain - Complete Flow
 
-1. Fork the repository
-2. Create a feature branch
-3. Commit your changes
-4. Push to the branch
-5. Open a Pull Request
+### Step 1: User adds domain in dashboard
+```javascript
+// In Dashboard component
+const addDomain = async (projectId, domainName) => {
+  // Insert into custom_domains table
+  const { data } = await supabase
+    .from('custom_domains')
+    .insert({
+      project_id: projectId,
+      domain_name: domainName,
+      status: 'pending',
+      dns_instructions: {
+        type: 'CNAME',
+        host: '@',
+        value: 'cepatbina.com'
+      }
+    });
+};
+```
 
-## 📄 License
+### Step 2: Show DNS instructions to user
+```
+Please add these DNS records at your domain provider:
+Type: CNAME
+Host: @ (or www)
+Value: cepatbina.com
+```
 
-This project is private. All rights reserved.
+### Step 3: User configures DNS at their registrar
 
-## 🔗 Links
+### Step 4: Verify DNS (manual or automated)
+```javascript
+// Check if DNS points to us
+const checkDNS = async (domain) => {
+  // Use DNS lookup API or manual verification
+  // Update status to 'verified' when confirmed
+};
+```
 
-- **GitHub**: https://github.com/aqilrvsb/Interactive-link.git
-- **Live Demo**: [Your Railway URL]
-- **Lovable Project**: https://lovable.dev/projects/57d3e522-175a-4838-94ed-882d907f460f
+### Step 5: Add domain to Vercel (via API)
+```javascript
+// Requires Vercel API token
+const addToVercel = async (domain) => {
+  const response = await fetch(
+    `https://api.vercel.com/v10/projects/${LIVE_SITES_PROJECT_ID}/domains`,
+    {
+      method: 'POST',
+      headers: {
+        'Authorization': `Bearer ${VERCEL_TOKEN}`,
+        'Content-Type': 'application/json'
+      },
+      body: JSON.stringify({ name: domain })
+    }
+  );
+};
+```
 
-## 💡 Support
+### Step 6: Update status to 'active'
+Domain is now live and serving content!
 
-For issues or questions, please open an issue on GitHub.
+## Environment Configuration
 
----
-Built with ❤️ using React, TypeScript, and Supabase
+### Supabase Connection (Hardcoded in both projects):
+```javascript
+const SUPABASE_URL = "https://mvmwcgnlebbesarvsvxk.supabase.co";
+const SUPABASE_ANON_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...";
+```
+
+No environment variables needed - credentials are in:
+- `/src/integrations/supabase/client.ts` (Main App)
+- `/api/render.js` (Live Sites)
+
+## DNS Configuration
+
+### For cepatbina.com (at your DNS provider):
+```
+A     @     76.76.21.21         # Vercel IP
+A     *     76.76.21.21         # Wildcard for subdomains
+CNAME www   cname.vercel-dns.com
+```
+
+### For customer domains:
+```
+CNAME @     cepatbina.com       # Points to your domain
+# OR
+A     @     76.76.21.21         # Direct to Vercel
+```
+
+## Testing the Setup
+
+### 1. Test subdomain routing:
+- Visit: `test.cepatbina.com`
+- Should show: "Site not found" (no project named "test")
+
+### 2. Test with real project:
+- Create project titled "demo"
+- Visit: `demo.cepatbina.com`
+- Should show: That project's content
+
+### 3. Test custom domain:
+- Add domain mapping in custom_domains table
+- Configure DNS
+- Add to Vercel via API
+- Visit custom domain
+- Should show: Mapped project's content
+
+## Current Limitations & TODOs
+
+### Completed:
+- ✅ Two-project setup on Vercel
+- ✅ Wildcard subdomain support
+- ✅ Database schema for domain mappings
+- ✅ Serverless function for routing
+
+### Still Needed:
+- ⏳ UI for domain management in dashboard
+- ⏳ DNS verification system
+- ⏳ Vercel API integration for adding domains
+- ⏳ SSL certificate monitoring
+- ⏳ Domain removal functionality
+
+## Security Considerations
+
+1. **Public Anon Key**: The Supabase anon key is public (safe for frontend)
+2. **RLS Policies**: Ensure proper Row Level Security on custom_domains table
+3. **Domain Verification**: Always verify DNS before activating domains
+4. **Rate Limiting**: Consider adding rate limits to prevent abuse
+
+## Troubleshooting
+
+### "Site not found" on subdomain:
+- Check if project title matches subdomain exactly
+- Ensure project is marked as public
+- Verify wildcard DNS is configured
+
+### Custom domain not working:
+- Check DNS propagation (can take 24-48 hours)
+- Verify domain is added to Vercel project
+- Check custom_domains table for correct mapping
+- Ensure SSL certificate is provisioned
+
+### Build fails on Live Sites project:
+- Ensure vercel-live.json exists
+- Check build command: `cp vercel-live.json vercel.json`
+- Verify /api/render.js has no syntax errors
+
+## Support & Maintenance
+
+This architecture supports:
+- Unlimited subdomains (via wildcard)
+- Hundreds of custom domains
+- Automatic SSL via Vercel/Let's Encrypt
+- Global CDN distribution
+- Zero-downtime deployments
+
+For 200+ clients, this setup will handle the load easily on Vercel's free/pro tier.
