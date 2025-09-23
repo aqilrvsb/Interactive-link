@@ -15,6 +15,7 @@ import PreviewPage from "./pages/PreviewPage";
 import LivePreview from "./pages/LivePreview";
 import NotFound from "./pages/NotFound";
 import Profile from "./pages/Profile";
+import ProjectCommunity from "./pages/ProjectCommunity";
 
 const queryClient = new QueryClient();
 
