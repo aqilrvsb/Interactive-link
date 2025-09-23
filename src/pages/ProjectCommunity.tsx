@@ -10,7 +10,7 @@ import { Globe, Lock, Unlock, ExternalLink, Search, Users, ArrowLeft, Eye, Calen
 import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/contexts/AuthContext';
 import { getUsersInfo } from '@/utils/communityUtils';
-import { formatDistanceToNow } from 'date-fns';
+import { formatTimeAgo } from '@/utils/userUtils';
 import { toast } from 'sonner';
 
 interface CommunityProject {
@@ -228,7 +228,7 @@ const ProjectCommunity = () => {
                       <CardDescription className="text-xs mt-1">
                         <span className="flex items-center gap-1">
                           <Calendar className="h-3 w-3" />
-                          {formatDistanceToNow(new Date(project.created_at), { addSuffix: true })}
+                          {formatTimeAgo(project.created_at)}
                         </span>
                       </CardDescription>
                     </div>
