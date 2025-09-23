@@ -5,14 +5,13 @@ import { useProjects } from '@/hooks/useProjects';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
-import { Badge } from '@/components/ui/badge';
 import { Skeleton } from '@/components/ui/skeleton';
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from '@/components/ui/dropdown-menu';
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Plus, Calendar, User, LogOut, Trash2, Edit, Globe, ChevronDown, Eye, FileEdit, Link, Copy, ExternalLink, RefreshCw, CheckCircle, Users, EyeOff, Lock, Unlock } from 'lucide-react';
-import { cleanEmailForDisplay } from '@/utils/userUtils';
+import { cleanEmailForDisplay, formatTimeAgo } from '@/utils/userUtils';
 import { FileManager } from '@/utils/fileManager';
 import { toast } from 'sonner';
 import { supabase } from '@/integrations/supabase/client';
@@ -466,7 +465,7 @@ const Dashboard = () => {
                     </div>
                     <div className="flex items-center gap-1 text-sm text-muted-foreground">
                       <Calendar className="h-3 w-3" />
-                      {formatDistanceToNow(new Date(project.updated_at), { addSuffix: true })}
+                      {formatTimeAgo(project.updated_at)}
                     </div>
                   </div>
                   <div className="flex gap-2 mt-4">
