@@ -1,4 +1,5 @@
 import { useState, useEffect } from 'react';
+import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
@@ -9,6 +10,7 @@ import { Globe, Lock, Unlock, ExternalLink, Search, Users, ArrowLeft, Eye, Calen
 import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/contexts/AuthContext';
 import { getUsersInfo } from '@/utils/communityUtils';
+import { formatDistanceToNow } from 'date-fns';
 import { toast } from 'sonner';
 
 interface CommunityProject {
@@ -24,9 +26,6 @@ interface CommunityProject {
   user_username?: string;
   domains: Array<{
     domain_name: string;
-    status: string;
-  }>;
-}
     status: string;
   }>;
 }
