@@ -14,7 +14,7 @@ import ChatEditor from "./pages/ChatEditor";
 import PreviewPage from "./pages/PreviewPage";
 import LivePreview from "./pages/LivePreview";
 import NotFound from "./pages/NotFound";
-import ProjectCommunity from "./pages/ProjectCommunity";
+import Profile from "./pages/Profile";
 
 const queryClient = new QueryClient();
 
@@ -30,6 +30,7 @@ const App = () => (
             <Route path="/" element={<Index />} />
             <Route path="/auth" element={<Auth />} />
             <Route path="/dashboard" element={<Dashboard />} />
+            <Route path="/profile" element={<Profile />} />
             <Route path="/community" element={<ProjectCommunity />} />
             <Route path="/editor" element={<Editor />} />
             <Route path="/editor/:projectId" element={<Editor />} />

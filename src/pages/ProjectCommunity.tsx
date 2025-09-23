@@ -8,7 +8,7 @@ import { Skeleton } from '@/components/ui/skeleton';
 import { Globe, Lock, Unlock, ExternalLink, Search, Users, ArrowLeft, Eye, Calendar } from 'lucide-react';
 import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/contexts/AuthContext';
-import { formatDistanceToNow } from 'date-fns';
+import { getUsersInfo } from '@/utils/communityUtils';
 import { toast } from 'sonner';
 
 interface CommunityProject {
@@ -21,8 +21,12 @@ interface CommunityProject {
   created_at: string;
   user_id: string;
   user_email?: string;
+  user_username?: string;
   domains: Array<{
     domain_name: string;
+    status: string;
+  }>;
+}
     status: string;
   }>;
 }
@@ -66,21 +70,11 @@ const ProjectCommunity = () => {
         return;
       }
 
-      // Get user emails separately - Fixed to use correct schema
-      let userEmails: Record<string, string> = {};
-      if (projectsData && projectsData.length > 0) {
-        const userIds = [...new Set(projectsData.map(p => p.user_id))];
-        const { data: profiles } = await supabase
-          .from('profiles')
-          .select('user_id, username, full_name')
-          .in('user_id', userIds);
-        
-        if (profiles) {
-          profiles.forEach(profile => {
-            userEmails[profile.user_id] = profile.username || profile.full_name || 'Anonymous';
-          });
-        }
-      }
+      // Get user information - Simplified approach
+      const userIds = [...new Set(projectsData?.map(p => p.user_id) || [])];
+      const userInfo = await getUsersInfo(userIds);
+      
+      console.log('👥 User info fetched:', userInfo);
 
       console.log('Fetched projects:', projectsData);
       console.log('Error:', error);
@@ -100,10 +94,11 @@ const ProjectCommunity = () => {
       // Don't filter again - projectsData already filtered by is_community_visible=true
       const visibleProjects = projectsData || [];
 
-      // Combine data with user emails
+      // Combine data with cleaned user information
       const projectsWithDomains = visibleProjects.map(project => ({
         ...project,
-        user_email: userEmails[project.user_id] || 'Anonymous',
+        user_email: userInfo[project.user_id] || 'Anonymous',
+        user_username: userInfo[project.user_id] || 'Anonymous',
         domains: domainsData?.filter(d => d.project_id === project.id) || []
       }));
 
@@ -307,10 +302,13 @@ const ProjectCommunity = () => {
                     )}
                   </div>
 
-                  {/* Creator - Always show creator email */}
-                  <p className="text-xs text-muted-foreground mt-3 truncate">
-                    By: {project.user_email}
-                  </p>
+                  {/* Creator - Show username prominently */}
+                  <div className="mt-3 pt-3 border-t border-gray-100">
+                    <p className="text-xs text-muted-foreground flex items-center gap-1">
+                      <span className="text-gray-400">By:</span>
+                      <span className="font-medium text-gray-600">{project.user_username}</span>
+                    </p>
+                  </div>
                 </CardContent>
               </Card>
             ))}

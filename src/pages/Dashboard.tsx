@@ -12,7 +12,7 @@ import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, D
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Plus, Calendar, User, LogOut, Trash2, Edit, Globe, ChevronDown, Eye, FileEdit, Link, Copy, ExternalLink, RefreshCw, CheckCircle, Users, EyeOff, Lock, Unlock } from 'lucide-react';
-import { formatDistanceToNow } from 'date-fns';
+import { cleanEmailForDisplay } from '@/utils/userUtils';
 import { FileManager } from '@/utils/fileManager';
 import { toast } from 'sonner';
 import { supabase } from '@/integrations/supabase/client';
@@ -331,11 +331,20 @@ const Dashboard = () => {
               <Users className="h-4 w-4" />
               Community
             </Button>
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => navigate('/profile')}
+              className="flex items-center gap-2"
+            >
+              <User className="h-4 w-4" />
+              Profile
+            </Button>
             {user ? (
               <>
                 <span className="text-sm text-muted-foreground flex items-center gap-2">
                   <User className="h-4 w-4" />
-                  {user.email || user.username || 'User'}
+                  {cleanEmailForDisplay(user.email) || 'User'}
                 </span>
                 <Button variant="outline" size="sm" onClick={handleSignOut}>
                   <LogOut className="h-4 w-4 mr-2" />
