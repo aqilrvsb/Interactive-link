@@ -217,18 +217,25 @@ const Dashboard = () => {
   // Toggle project community visibility
   const toggleCommunityVisibility = async (project: any) => {
     try {
-      const newVisibility = !project.is_community_visible;
-      const { error } = await supabase
+      const newVisibility = project.is_community_visible === false ? true : false;
+      const { data, error } = await supabase
         .from('projects')
         .update({ is_community_visible: newVisibility })
         .eq('id', project.id)
-        .eq('user_id', user?.id);
+        .eq('user_id', user?.id)
+        .select()
+        .single();
 
-      if (!error) {
+      if (!error && data) {
         toast.success(newVisibility ? 'Project shared with community' : 'Project hidden from community');
-        // Refresh projects to update UI
+        // Update the local projects state instead of reloading
+        const updatedProjects = projects.map((p: any) => 
+          p.id === project.id ? { ...p, is_community_visible: newVisibility } : p
+        );
+        // Force a re-render with updated projects
         window.location.reload();
       } else {
+        console.error('Update error:', error);
         toast.error('Failed to update visibility');
       }
     } catch (err) {

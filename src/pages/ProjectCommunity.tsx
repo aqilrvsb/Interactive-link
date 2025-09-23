@@ -42,7 +42,7 @@ const ProjectCommunity = () => {
 
   const fetchCommunityProjects = async () => {
     try {
-      // First get all public projects that are EXPLICITLY visible
+      // Get all public projects with community visibility
       const { data: projectsData, error } = await supabase
         .from('projects')
         .select(`
@@ -53,12 +53,34 @@ const ProjectCommunity = () => {
           is_public,
           is_community_visible,
           created_at,
-          user_id,
-          profiles!inner(email)
+          user_id
         `)
         .eq('is_public', true)
-        .eq('is_community_visible', true)  // Only show projects explicitly marked as visible
+        .eq('is_community_visible', true)
         .order('created_at', { ascending: false });
+
+      console.log('Projects fetched:', projectsData);
+      
+      if (error) {
+        console.error('Error fetching projects:', error);
+        return;
+      }
+
+      // Get user emails separately - Fixed to use correct schema
+      let userEmails: Record<string, string> = {};
+      if (projectsData && projectsData.length > 0) {
+        const userIds = [...new Set(projectsData.map(p => p.user_id))];
+        const { data: profiles } = await supabase
+          .from('profiles')
+          .select('user_id, username, full_name')
+          .in('user_id', userIds);
+        
+        if (profiles) {
+          profiles.forEach(profile => {
+            userEmails[profile.user_id] = profile.username || profile.full_name || 'Anonymous';
+          });
+        }
+      }
 
       console.log('Fetched projects:', projectsData);
       console.log('Error:', error);
@@ -73,16 +95,15 @@ const ProjectCommunity = () => {
       const { data: domainsData } = await supabase
         .from('custom_domains')
         .select('project_id, domain_name, status')
-        .in('project_id', projectIds)
-        .eq('status', 'active');
+        .in('project_id', projectIds);
 
       // Don't filter again - projectsData already filtered by is_community_visible=true
       const visibleProjects = projectsData || [];
 
-      // Combine data
+      // Combine data with user emails
       const projectsWithDomains = visibleProjects.map(project => ({
         ...project,
-        user_email: project.profiles?.email || 'Anonymous',
+        user_email: userEmails[project.user_id] || 'Anonymous',
         domains: domainsData?.filter(d => d.project_id === project.id) || []
       }));
 
@@ -267,7 +288,7 @@ const ProjectCommunity = () => {
                       className="flex-1"
                       onClick={() => {
                         const slug = project.title.toLowerCase().replace(/[^a-z0-9]+/g, '-');
-                        window.open(`/p/${project.id}/${slug}`, '_blank');
+                        window.open(`/${project.id}/${slug}`, '_blank');
                       }}
                     >
                       <Eye className="h-4 w-4 mr-1" />
