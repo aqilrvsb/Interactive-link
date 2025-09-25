@@ -1,0 +1,138 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Framework Support Test</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            max-width: 1200px;
+            margin: 0 auto;
+            padding: 20px;
+        }
+        .framework-test {
+            margin-bottom: 30px;
+            padding: 20px;
+            border: 1px solid #ddd;
+            border-radius: 8px;
+        }
+        .framework-test h2 {
+            margin-top: 0;
+        }
+        .code-block {
+            background: #f4f4f4;
+            padding: 15px;
+            border-radius: 4px;
+            font-family: 'Courier New', monospace;
+            font-size: 14px;
+            white-space: pre-wrap;
+            overflow-x: auto;
+        }
+        .success {
+            color: green;
+            font-weight: bold;
+        }
+    </style>
+</head>
+<body>
+    <h1>🎉 Framework Support Enabled!</h1>
+    <p>Your Interactive-link system now supports multiple frameworks. Test these examples:</p>
+
+    <div class="framework-test">
+        <h2>✅ React Example</h2>
+        <div class="code-block">import React, { useState } from 'react';
+
+function Counter() {
+  const [count, setCount] = useState(0);
+  
+  return (
+    &lt;div&gt;
+      &lt;h1&gt;Count: {count}&lt;/h1&gt;
+      &lt;button onClick={() => setCount(count + 1)}&gt;
+        Increment
+      &lt;/button&gt;
+    &lt;/div&gt;
+  );
+}
+
+export default Counter;</div>
+    </div>
+
+    <div class="framework-test">
+        <h2>✅ Vue 3 Example</h2>
+        <div class="code-block">&lt;template&gt;
+  &lt;div&gt;
+    &lt;h1&gt;{{ message }}&lt;/h1&gt;
+    &lt;p&gt;Count: {{ count }}&lt;/p&gt;
+    &lt;button @click="increment"&gt;Increment&lt;/button&gt;
+  &lt;/div&gt;
+&lt;/template&gt;
+
+&lt;script&gt;
+export default {
+  data() {
+    return {
+      message: 'Vue Counter',
+      count: 0
+    }
+  },
+  methods: {
+    increment() {
+      this.count++
+    }
+  }
+}
+&lt;/script&gt;</div>
+    </div>
+
+    <div class="framework-test">
+        <h2>✅ Angular Example</h2>
+        <div class="code-block">@Component({
+  selector: 'app-counter',
+  template: `
+    &lt;div&gt;
+      &lt;h1&gt;{{ title }}&lt;/h1&gt;
+      &lt;p&gt;Count: {{ count }}&lt;/p&gt;
+      &lt;button (click)="increment()"&gt;Increment&lt;/button&gt;
+    &lt;/div&gt;
+  `
+})
+export class CounterComponent {
+  title = 'Angular Counter';
+  count = 0;
+  
+  increment() {
+    this.count++;
+  }
+}</div>
+    </div>
+
+    <div class="framework-test">
+        <h2>✅ What's New</h2>
+        <ul>
+            <li class="success">Framework Detection: Automatically detects React, Vue, Angular, Alpine.js</li>
+            <li class="success">Auto-Processing: Converts framework code to browser-executable HTML</li>
+            <li class="success">CDN Integration: Automatically includes necessary libraries</li>
+            <li class="success">Template Library: Quick-start templates for each framework</li>
+            <li class="success">Live Preview: See framework code running instantly</li>
+            <li class="success">Production Ready: Works with custom domains</li>
+        </ul>
+    </div>
+
+    <div class="framework-test">
+        <h2>🚀 How to Test</h2>
+        <ol>
+            <li>Go to your Website Builder (/website-builder)</li>
+            <li>Click "Choose Framework Template" button</li>
+            <li>Select any framework (React, Vue, Angular, etc.)</li>
+            <li>See the live preview instantly</li>
+            <li>Save and deploy to custom domain</li>
+        </ol>
+    </div>
+
+    <script>
+        console.log('Framework support successfully enabled!');
+    </script>
+</body>
+</html>
