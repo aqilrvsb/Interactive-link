@@ -1,0 +1,253 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Framework Debug Test</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            max-width: 1200px;
+            margin: 0 auto;
+            padding: 20px;
+        }
+        .test-container {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 20px;
+            margin-bottom: 30px;
+        }
+        .code-section, .preview-section {
+            border: 1px solid #ddd;
+            border-radius: 8px;
+            padding: 15px;
+        }
+        textarea {
+            width: 100%;
+            height: 200px;
+            font-family: monospace;
+            font-size: 12px;
+        }
+        iframe {
+            width: 100%;
+            height: 300px;
+            border: 1px solid #ccc;
+        }
+        button {
+            background: #007bff;
+            color: white;
+            padding: 10px 20px;
+            border: none;
+            border-radius: 4px;
+            cursor: pointer;
+            margin-top: 10px;
+        }
+        button:hover {
+            background: #0056b3;
+        }
+        h2 {
+            margin-top: 0;
+        }
+    </style>
+</head>
+<body>
+    <h1>🔬 Framework Processing Debug Test</h1>
+    <p>Test each framework to see if processing works correctly:</p>
+
+    <!-- React Test -->
+    <div class="test-container">
+        <div class="code-section">
+            <h2>React Test</h2>
+            <textarea id="react-code">
+function App() {
+  const [count, setCount] = React.useState(0);
+  
+  return (
+    <div style={{ padding: '20px', fontFamily: 'Arial' }}>
+      <h1>React Counter App</h1>
+      <p>Count: {count}</p>
+      <button onClick={() => setCount(count + 1)}>
+        Increment
+      </button>
+      <button onClick={() => setCount(count - 1)}>
+        Decrement
+      </button>
+    </div>
+  );
+}
+            </textarea>
+            <button onclick="processReact()">Process React</button>
+        </div>
+        <div class="preview-section">
+            <h2>React Preview</h2>
+            <iframe id="react-preview"></iframe>
+        </div>
+    </div>
+
+    <!-- Vue Test -->
+    <div class="test-container">
+        <div class="code-section">
+            <h2>Vue Test</h2>
+            <textarea id="vue-code">
+<div id="app">
+  <h1>{{ title }}</h1>
+  <p>Count: {{ count }}</p>
+  <button @click="count++">Increment</button>
+  <button @click="count--">Decrement</button>
+</div>
+
+<script>
+const { createApp } = Vue;
+createApp({
+  data() {
+    return {
+      title: 'Vue Counter App',
+      count: 0
+    }
+  }
+}).mount('#app');
+</script>
+            </textarea>
+            <button onclick="processVue()">Process Vue</button>
+        </div>
+        <div class="preview-section">
+            <h2>Vue Preview</h2>
+            <iframe id="vue-preview"></iframe>
+        </div>
+    </div>
+
+    <!-- Angular Test -->
+    <div class="test-container">
+        <div class="code-section">
+            <h2>Angular (AngularJS) Test</h2>
+            <textarea id="angular-code">
+<div ng-app="myApp" ng-controller="MainCtrl">
+  <h1>{{ title }}</h1>
+  <p>Count: {{ count }}</p>
+  <button ng-click="increment()">Increment</button>
+  <button ng-click="decrement()">Decrement</button>
+</div>
+
+<script>
+angular.module('myApp', [])
+  .controller('MainCtrl', function($scope) {
+    $scope.title = 'Angular Counter App';
+    $scope.count = 0;
+    
+    $scope.increment = function() {
+      $scope.count++;
+    };
+    
+    $scope.decrement = function() {
+      $scope.count--;
+    };
+  });
+</script>
+            </textarea>
+            <button onclick="processAngular()">Process Angular</button>
+        </div>
+        <div class="preview-section">
+            <h2>Angular Preview</h2>
+            <iframe id="angular-preview"></iframe>
+        </div>
+    </div>
+
+    <!-- Alpine Test -->
+    <div class="test-container">
+        <div class="code-section">
+            <h2>Alpine.js Test</h2>
+            <textarea id="alpine-code">
+<div x-data="{ count: 0, title: 'Alpine.js Counter App' }" style="padding: 20px; font-family: Arial;">
+    <h1 x-text="title"></h1>
+    <p>Count: <span x-text="count"></span></p>
+    <button @click="count++" style="margin: 5px;">Increment</button>
+    <button @click="count--" style="margin: 5px;">Decrement</button>
+</div>
+            </textarea>
+            <button onclick="processAlpine()">Process Alpine</button>
+        </div>
+        <div class="preview-section">
+            <h2>Alpine Preview</h2>
+            <iframe id="alpine-preview"></iframe>
+        </div>
+    </div>
+
+    <script>
+        function processReact() {
+            const code = document.getElementById('react-code').value;
+            const html = `<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>React App</title>
+    <script crossorigin src="https://unpkg.com/react@18/umd/react.development.min.js"></script>
+    <script crossorigin src="https://unpkg.com/react-dom@18/umd/react-dom.development.min.js"></script>
+    <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
+</head>
+<body>
+    <div id="root"></div>
+    <script type="text/babel">
+        ${code}
+        
+        const root = ReactDOM.createRoot(document.getElementById('root'));
+        root.render(<App />);
+    </script>
+</body>
+</html>`;
+            document.getElementById('react-preview').srcdoc = html;
+        }
+
+        function processVue() {
+            const code = document.getElementById('vue-code').value;
+            const html = `<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Vue App</title>
+    <script src="https://unpkg.com/vue@3/dist/vue.global.js"></script>
+</head>
+<body>
+    ${code}
+</body>
+</html>`;
+            document.getElementById('vue-preview').srcdoc = html;
+        }
+
+        function processAngular() {
+            const code = document.getElementById('angular-code').value;
+            const html = `<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Angular App</title>
+    <script src="https://ajax.googleapis.com/ajax/libs/angularjs/1.8.2/angular.min.js"></script>
+</head>
+<body>
+    ${code}
+</body>
+</html>`;
+            document.getElementById('angular-preview').srcdoc = html;
+        }
+
+        function processAlpine() {
+            const code = document.getElementById('alpine-code').value;
+            const html = `<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Alpine.js App</title>
+    <script defer src="https://cdn.jsdelivr.net/npm/alpinejs@3.x.x/dist/cdn.min.js"></script>
+</head>
+<body>
+    ${code}
+</body>
+</html>`;
+            document.getElementById('alpine-preview').srcdoc = html;
+        }
+    </script>
+</body>
+</html>

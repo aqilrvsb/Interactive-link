@@ -17,9 +17,9 @@ function processReactCode(code: string): string {
       const headEndIndex = code.indexOf('</head>');
       if (headEndIndex !== -1) {
         const reactCDN = `
-    <script crossorigin src="https://unpkg.com/react@18/umd/react.production.min.js"></script>
-    <script crossorigin src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js"></script>
-    <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>`;
+    <script crossorigin src="https://unpkg.com/react@18/umd/react.development.min.js"></script>
+    <script crossorigin src="https://unpkg.com/react-dom@18/umd/react-dom.development.min.js"></script>
+    <script src="https://unpkg.com/@babel/standalone@7/babel.min.js"></script>`;
         code = code.slice(0, headEndIndex) + reactCDN + code.slice(headEndIndex);
       }
     }
@@ -48,9 +48,9 @@ function processReactCode(code: string): string {
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>React App</title>
-    <script crossorigin src="https://unpkg.com/react@18/umd/react.production.min.js"></script>
-    <script crossorigin src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js"></script>
-    <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
+    <script crossorigin src="https://unpkg.com/react@18/umd/react.development.min.js"></script>
+    <script crossorigin src="https://unpkg.com/react-dom@18/umd/react-dom.development.min.js"></script>
+    <script src="https://unpkg.com/@babel/standalone@7/babel.min.js"></script>
     <style>
         body {
             margin: 0;
@@ -185,13 +185,14 @@ function processVueCode(code: string): string {
 </html>`;
 }
 /**
- * Process Angular code (AngularJS 1.x for browser compatibility)
+ * Process Angular code (Modern Angular with standalone scripts)
  */
 function processAngularCode(code: string): string {
   if (code.includes('<!DOCTYPE') || code.includes('<html')) {
-    if (!code.includes('angular.min.js')) {
+    if (!code.includes('angular.min.js') && !code.includes('@angular/')) {
       const headEndIndex = code.indexOf('</head>');
       if (headEndIndex !== -1) {
+        // Use AngularJS for simpler compatibility
         const angularCDN = `\n    <script src="https://ajax.googleapis.com/ajax/libs/angularjs/1.8.2/angular.min.js"></script>`;
         code = code.slice(0, headEndIndex) + angularCDN + code.slice(headEndIndex);
       }
@@ -345,6 +346,9 @@ export function processFrameworkCode(code: string): string {
  * Wrap Alpine.js code in HTML structure
  */
 function wrapAlpineJS(code: string): string {
+  // Check if code already has Alpine CDN
+  const hasAlpineCDN = code.includes('alpinejs') || code.includes('Alpine');
+  
   return `<!DOCTYPE html>
 <html lang="en">
 <head>
@@ -361,7 +365,7 @@ function wrapAlpineJS(code: string): string {
     </style>
 </head>
 <body>
-    ${code}
+    ${!hasAlpineCDN ? code : code.replace(/<script[^>]*alpinejs[^>]*><\/script>/gi, '')}
 </body>
 </html>`;
 }

@@ -99,7 +99,10 @@ export function detectFramework(code: string): FrameworkInfo {
     trimmedCode.includes('x-data') ||
     trimmedCode.includes('x-show') ||
     trimmedCode.includes('x-if') ||
-    trimmedCode.includes('@click') ||
+    trimmedCode.includes('x-for') ||
+    trimmedCode.includes('x-model') ||
+    trimmedCode.includes('x-on:') ||
+    trimmedCode.includes('@click') && !trimmedCode.includes('Vue') && !trimmedCode.includes('vue') ||
     trimmedCode.includes('Alpine.')
   ) {
     return {
