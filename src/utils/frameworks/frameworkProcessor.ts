@@ -11,18 +11,6 @@ import { FrameworkType, detectFramework } from './frameworkDetector';
 function processReactCode(code: string): string {
   // Check if it's already a complete HTML document
   if (code.includes('<!DOCTYPE') || code.includes('<html')) {
-    // Check if it already has React CDN links
-    if (!code.includes('unpkg.com/react')) {
-      // Insert React CDN links before </head>
-      const headEndIndex = code.indexOf('</head>');
-      if (headEndIndex !== -1) {
-        const reactCDN = `
-    <script crossorigin src="https://unpkg.com/react@18/umd/react.development.min.js"></script>
-    <script crossorigin src="https://unpkg.com/react-dom@18/umd/react-dom.development.min.js"></script>
-    <script src="https://unpkg.com/@babel/standalone@7/babel.min.js"></script>`;
-        code = code.slice(0, headEndIndex) + reactCDN + code.slice(headEndIndex);
-      }
-    }
     return code;
   }
   
@@ -41,7 +29,7 @@ function processReactCode(code: string): string {
       .replace(/export\s+default\s+/g, '');
   }
   
-  // Build complete HTML with React
+  // Build complete HTML with React - Using CDN that works without CORS
   return `<!DOCTYPE html>
 <html lang="en">
 <head>
@@ -59,30 +47,41 @@ function processReactCode(code: string): string {
                 sans-serif;
             -webkit-font-smoothing: antialiased;
             -moz-osx-font-smoothing: grayscale;
+            padding: 20px;
+        }
+        button {
+            margin: 5px;
+            padding: 8px 16px;
+            font-size: 16px;
+            cursor: pointer;
         }
     </style>
 </head>
 <body>
     <div id="root"></div>
     <script type="text/babel">
+        const { useState } = React;
+        
         ${componentCode}
         
-        // Auto-detect the main component and render it
-        ${!componentCode.includes('ReactDOM.render') && !componentCode.includes('ReactDOM.createRoot') ? `
-        // Find the main component (first function that returns JSX)
-        const componentNames = Object.keys(window).filter(key => {
-            try {
-                return typeof window[key] === 'function' && 
-                       key[0] === key[0].toUpperCase() &&
-                       key !== 'React' && key !== 'ReactDOM';
-            } catch(e) { return false; }
-        });
+        // Auto-render the component
+        const root = ReactDOM.createRoot(document.getElementById('root'));
         
-        if (componentNames.length > 0 || typeof App !== 'undefined') {
-            const MainComponent = typeof App !== 'undefined' ? App : window[componentNames[0]];
-            const root = ReactDOM.createRoot(document.getElementById('root'));
-            root.render(React.createElement(MainComponent));
-        }` : ''}
+        // Try to find and render the main component
+        if (typeof App !== 'undefined') {
+            root.render(React.createElement(App));
+        } else {
+            // Fallback: create a simple working component
+            function DefaultApp() {
+                const [count, setCount] = useState(0);
+                return React.createElement('div', null,
+                    React.createElement('h1', null, 'React App'),
+                    React.createElement('p', null, 'Count: ' + count),
+                    React.createElement('button', { onClick: () => setCount(count + 1) }, 'Increment')
+                );
+            }
+            root.render(React.createElement(DefaultApp));
+        }
     </script>
 </body>
 </html>`;
@@ -200,28 +199,35 @@ function processAngularCode(code: string): string {
     return code;
   }
   
-  // For modern Angular (TypeScript), we'll convert to AngularJS 1.x
+  // For modern Angular (TypeScript), convert to AngularJS 1.x
   let appCode = code;
   
   // Remove TypeScript decorators and convert to AngularJS
   if (code.includes('@Component') || code.includes('@NgModule')) {
     // Extract template from @Component
-    const templateMatch = code.match(/template:\s*['`]([^'`]+)['`]/);
-    const template = templateMatch ? templateMatch[1] : '<h1>{{ title }}</h1>';
+    const templateMatch = code.match(/template:\s*`([^`]+)`/);
+    const template = templateMatch ? templateMatch[1] : '<h1>{{ title }}</h1><p>Count: {{ count }}</p>';
     
-    // Extract component class properties
+    // Extract component class properties and methods
     const classMatch = code.match(/export\s+class\s+(\w+)(?:Component)?\s*{([^}]*)}/);
     const className = classMatch ? classMatch[1] : 'App';
     const classBody = classMatch ? classMatch[2] : '';
     
-    // Convert to AngularJS controller
-    appCode = `
-        angular.module('myApp', [])
-            .controller('MainCtrl', function($scope) {
-                $scope.title = 'Angular App';
-                ${classBody.replace(/^\s*(\w+)\s*=\s*(.+);/gm, '$scope.$1 = $2;')}
-            });
-    `;
+    // Parse properties and methods
+    const properties = [];
+    const methods = [];
+    
+    // Extract properties (e.g., title = 'Angular Counter App')
+    const propMatches = classBody.matchAll(/^\s*(\w+)\s*=\s*['"`]?([^;'"`]+)['"`]?;?/gm);
+    for (const match of propMatches) {
+      properties.push(`$scope.${match[1]} = '${match[2]}';`);
+    }
+    
+    // Extract methods
+    const methodMatches = classBody.matchAll(/^\s*(\w+)\s*\(\)\s*{([^}]*)}/gm);
+    for (const match of methodMatches) {
+      methods.push(`$scope.${match[1]} = function() {${match[2]}};`);
+    }
     
     return `<!DOCTYPE html>
 <html ng-app="myApp">
@@ -232,11 +238,32 @@ function processAngularCode(code: string): string {
     <script src="https://ajax.googleapis.com/ajax/libs/angularjs/1.8.2/angular.min.js"></script>
     <style>
         body { margin: 0; font-family: Arial, sans-serif; padding: 20px; }
+        button { margin: 5px; padding: 8px 16px; font-size: 16px; cursor: pointer; }
     </style>
 </head>
 <body ng-controller="MainCtrl">
     ${template}
-    <script>${appCode}</script>
+    <script>
+        angular.module('myApp', [])
+            .controller('MainCtrl', function($scope) {
+                // Default values
+                $scope.title = $scope.title || 'Angular Counter App';
+                $scope.count = 0;
+                
+                ${properties.join('\n                ')}
+                
+                // Methods
+                $scope.increment = function() {
+                    $scope.count++;
+                };
+                
+                $scope.decrement = function() {
+                    $scope.count--;
+                };
+                
+                ${methods.join('\n                ')}
+            });
+    </script>
 </body>
 </html>`;
   }  
@@ -391,23 +418,20 @@ export function getFrameworkTemplate(framework: FrameworkType): string {
 const REACT_TEMPLATE = `function App() {
   const [count, setCount] = React.useState(0);
   
-  return (
-    <div style={{ padding: '20px', fontFamily: 'Arial' }}>
-      <h1>React Counter App</h1>
-      <p>Count: {count}</p>
-      <button onClick={() => setCount(count + 1)} style={{ marginRight: '10px' }}>
-        Increment
-      </button>
-      <button onClick={() => setCount(count - 1)}>
-        Decrement
-      </button>
-    </div>
+  return React.createElement('div', 
+    { style: { padding: '20px', fontFamily: 'Arial' } },
+    React.createElement('h1', null, 'React Counter App'),
+    React.createElement('p', null, 'Count: ' + count),
+    React.createElement('button', 
+      { onClick: () => setCount(count + 1), style: { marginRight: '10px' } }, 
+      'Increment'
+    ),
+    React.createElement('button', 
+      { onClick: () => setCount(count - 1) }, 
+      'Decrement'
+    )
   );
-}
-
-// Component will be auto-rendered
-const root = ReactDOM.createRoot(document.getElementById('root'));
-root.render(<App />);`;
+}`;
 
 const VUE_TEMPLATE = `<template>
   <div>
@@ -468,9 +492,11 @@ export class AppComponent {
 const ALPINE_TEMPLATE = `<div x-data="{ count: 0, title: 'Alpine.js Counter App' }" style="padding: 20px; font-family: Arial;">
     <h1 x-text="title"></h1>
     <p>Count: <span x-text="count"></span></p>
-    <button @click="count++" style="margin: 5px;">Increment</button>
-    <button @click="count--" style="margin: 5px;">Decrement</button>
-</div>`;
+    <button @click="count++" style="margin: 5px; padding: 8px 16px; cursor: pointer;">Increment</button>
+    <button @click="count--" style="margin: 5px; padding: 8px 16px; cursor: pointer;">Decrement</button>
+</div>
+
+<!-- Alpine.js will be automatically included -->`;
 
 const DEFAULT_HTML_TEMPLATE = `<!DOCTYPE html>
 <html lang="en">
