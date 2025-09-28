@@ -388,16 +388,14 @@ export function getFrameworkTemplate(framework: FrameworkType): string {
   }
 }
 // Framework Templates
-const REACT_TEMPLATE = `import React, { useState } from 'react';
-
-function App() {
-  const [count, setCount] = useState(0);
+const REACT_TEMPLATE = `function App() {
+  const [count, setCount] = React.useState(0);
   
   return (
     <div style={{ padding: '20px', fontFamily: 'Arial' }}>
       <h1>React Counter App</h1>
       <p>Count: {count}</p>
-      <button onClick={() => setCount(count + 1)}>
+      <button onClick={() => setCount(count + 1)} style={{ marginRight: '10px' }}>
         Increment
       </button>
       <button onClick={() => setCount(count - 1)}>
@@ -407,7 +405,9 @@ function App() {
   );
 }
 
-// Component will be auto-rendered`;
+// Component will be auto-rendered
+const root = ReactDOM.createRoot(document.getElementById('root'));
+root.render(<App />);`;
 
 const VUE_TEMPLATE = `<template>
   <div>
