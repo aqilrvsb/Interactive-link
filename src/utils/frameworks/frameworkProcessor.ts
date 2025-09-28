@@ -29,10 +29,7 @@ function processReactCode(code: string): string {
       .replace(/export\s+default\s+/g, '');
   }
   
-  // Check if component uses JSX
-  const hasJSX = /<[A-Za-z][^>]*>/.test(componentCode) || /<\/[A-Za-z]+>/.test(componentCode);
-  
-  // Build complete HTML with React
+  // Build complete HTML with React - Using CDN that works without CORS
   return `<!DOCTYPE html>
 <html lang="en">
 <head>
@@ -41,7 +38,7 @@ function processReactCode(code: string): string {
     <title>React App</title>
     <script crossorigin src="https://unpkg.com/react@18/umd/react.development.min.js"></script>
     <script crossorigin src="https://unpkg.com/react-dom@18/umd/react-dom.development.min.js"></script>
-    ${hasJSX ? '<script src="https://unpkg.com/@babel/standalone@7/babel.min.js"></script>' : ''}
+    <script src="https://unpkg.com/@babel/standalone@7/babel.min.js"></script>
     <style>
         body {
             margin: 0;
@@ -62,8 +59,8 @@ function processReactCode(code: string): string {
 </head>
 <body>
     <div id="root"></div>
-    <script ${hasJSX ? 'type="text/babel"' : 'type="text/javascript"'}>
-        const { useState, useEffect, useRef, useCallback, useMemo } = React;
+    <script type="text/babel">
+        const { useState } = React;
         
         ${componentCode}
         
@@ -72,31 +69,18 @@ function processReactCode(code: string): string {
         
         // Try to find and render the main component
         if (typeof App !== 'undefined') {
-            root.render(${hasJSX ? '<App />' : 'React.createElement(App)'});
+            root.render(React.createElement(App));
         } else {
-            // Look for any exported function component
-            const functionNames = Object.keys(window).filter(key => 
-                typeof window[key] === 'function' && 
-                key[0] === key[0].toUpperCase() &&
-                !['React', 'ReactDOM'].includes(key)
-            );
-            
-            if (functionNames.length > 0) {
-                const Component = window[functionNames[0]];
-                root.render(${hasJSX ? '<Component />' : 'React.createElement(Component)'});
-            } else {
-                // Fallback: create a simple working component
-                function DefaultApp() {
-                    const [count, setCount] = useState(0);
-                    return React.createElement('div', null,
-                        React.createElement('h1', null, 'React App'),
-                        React.createElement('p', null, 'Click the button below to test React is working'),
-                        React.createElement('p', null, 'Count: ' + count),
-                        React.createElement('button', { onClick: () => setCount(count + 1) }, 'Increment')
-                    );
-                }
-                root.render(React.createElement(DefaultApp));
+            // Fallback: create a simple working component
+            function DefaultApp() {
+                const [count, setCount] = useState(0);
+                return React.createElement('div', null,
+                    React.createElement('h1', null, 'React App'),
+                    React.createElement('p', null, 'Count: ' + count),
+                    React.createElement('button', { onClick: () => setCount(count + 1) }, 'Increment')
+                );
             }
+            root.render(React.createElement(DefaultApp));
         }
     </script>
 </body>
@@ -198,8 +182,7 @@ function processVueCode(code: string): string {
     </script>
 </body>
 </html>`;
-}
-/**
+}/**
  * Process Angular code (Modern Angular with standalone scripts)
  */
 function processAngularCode(code: string): string {
@@ -283,28 +266,7 @@ function processAngularCode(code: string): string {
 </body>
 </html>`;
   }  
-  // Standard AngularJS 1.x code or simple Angular template
-  if (code.includes('ng-app') || code.includes('ng-controller') || code.includes('angular.module')) {
-    // If it already has the angular CDN and structure, just wrap it
-    return `<!DOCTYPE html>
-<html>
-<head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Angular App</title>
-    <script src="https://ajax.googleapis.com/ajax/libs/angularjs/1.8.2/angular.min.js"></script>
-    <style>
-        body { margin: 0; font-family: Arial, sans-serif; padding: 20px; }
-        button { margin: 5px; padding: 8px 16px; font-size: 16px; cursor: pointer; }
-    </style>
-</head>
-<body>
-    ${code}
-</body>
-</html>`;
-  }
-  
-  // Default Angular template if no specific Angular code detected
+  // Standard AngularJS 1.x code
   return `<!DOCTYPE html>
 <html ng-app="myApp">
 <head>
@@ -314,22 +276,21 @@ function processAngularCode(code: string): string {
     <script src="https://ajax.googleapis.com/ajax/libs/angularjs/1.8.2/angular.min.js"></script>
     <style>
         body { margin: 0; font-family: Arial, sans-serif; padding: 20px; }
-        button { margin: 5px; padding: 8px 16px; font-size: 16px; cursor: pointer; }
     </style>
 </head>
 <body ng-controller="MainCtrl">
     <h1>{{ title }}</h1>
     <p>{{ message }}</p>
-    <p>Count: {{ count }}</p>
-    <button ng-click="count = count + 1">Increment</button>
-    <button ng-click="count = count - 1">Decrement</button>
     <script>
+        ${appCode}
+        
+        // Auto-create app if not exists
+        ${!appCode.includes('angular.module') ? `
         angular.module('myApp', [])
             .controller('MainCtrl', function($scope) {
                 $scope.title = 'Angular App';
                 $scope.message = 'Welcome to AngularJS!';
-                $scope.count = 0;
-            });
+            });` : ''}
     </script>
 </body>
 </html>`;
@@ -503,29 +464,29 @@ export default {
 div { padding: 20px; font-family: Arial; }
 button { margin: 5px; }
 </style>`;
-const ANGULAR_TEMPLATE = `<div ng-app="myApp" ng-controller="MainCtrl">
-  <div style="padding: 20px; font-family: Arial;">
-    <h1>{{ title }}</h1>
-    <p>Count: {{ count }}</p>
-    <button ng-click="increment()">Increment</button>
-    <button ng-click="decrement()">Decrement</button>
-  </div>
-</div>
-<script>
-angular.module('myApp', [])
-  .controller('MainCtrl', function($scope) {
-    $scope.title = 'Angular Counter App';
-    $scope.count = 0;
-    
-    $scope.increment = function() {
-      $scope.count++;
-    };
-    
-    $scope.decrement = function() {
-      $scope.count--;
-    };
-  });
-</script>`;
+const ANGULAR_TEMPLATE = `@Component({
+  selector: 'app-root',
+  template: \`
+    <div style="padding: 20px; font-family: Arial;">
+      <h1>{{ title }}</h1>
+      <p>Count: {{ count }}</p>
+      <button (click)="increment()">Increment</button>
+      <button (click)="decrement()">Decrement</button>
+    </div>
+  \`
+})
+export class AppComponent {
+  title = 'Angular Counter App';
+  count = 0;
+  
+  increment() {
+    this.count++;
+  }
+  
+  decrement() {
+    this.count--;
+  }
+}`;
 
 const ALPINE_TEMPLATE = `<div x-data="{ count: 0, title: 'Alpine.js Counter App' }" style="padding: 20px; font-family: Arial;">
     <h1 x-text="title"></h1>
