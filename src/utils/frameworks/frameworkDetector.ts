@@ -41,7 +41,7 @@ export function detectFramework(code: string): FrameworkInfo {
     };
   }
   
-  // Check for Vue
+  // Check for Vue FIRST (before Alpine)
   if (
     trimmedCode.includes('new Vue') ||
     trimmedCode.includes('Vue.createApp') ||
@@ -49,7 +49,7 @@ export function detectFramework(code: string): FrameworkInfo {
     trimmedCode.includes('v-model') ||
     trimmedCode.includes('v-if') ||
     trimmedCode.includes('v-for') ||
-    trimmedCode.includes('@click') ||
+    trimmedCode.includes('v-show') ||
     /<template>/.test(trimmedCode) ||
     /export default {[\s\S]*data\s*\(\)/.test(trimmedCode)
   ) {
@@ -58,6 +58,26 @@ export function detectFramework(code: string): FrameworkInfo {
       needsCompilation: true,
       cdnLinks: [
         'https://unpkg.com/vue@3/dist/vue.global.js'
+      ]
+    };
+  }
+  
+  // Check for Alpine.js (AFTER Vue to avoid conflicts)
+  if (
+    trimmedCode.includes('x-data') ||
+    trimmedCode.includes('x-show') ||
+    trimmedCode.includes('x-if') ||
+    trimmedCode.includes('x-for') ||
+    trimmedCode.includes('x-model') ||
+    trimmedCode.includes('x-on:') ||
+    trimmedCode.includes('x-text') ||
+    trimmedCode.includes('Alpine.')
+  ) {
+    return {
+      type: 'alpine',
+      needsCompilation: false,
+      cdnLinks: [
+        'https://cdn.jsdelivr.net/npm/alpinejs@3.x.x/dist/cdn.min.js'
       ]
     };
   }
@@ -94,25 +114,7 @@ export function detectFramework(code: string): FrameworkInfo {
     };
   }
   
-  // Check for Alpine.js
-  if (
-    trimmedCode.includes('x-data') ||
-    trimmedCode.includes('x-show') ||
-    trimmedCode.includes('x-if') ||
-    trimmedCode.includes('x-for') ||
-    trimmedCode.includes('x-model') ||
-    trimmedCode.includes('x-on:') ||
-    trimmedCode.includes('@click') && !trimmedCode.includes('Vue') && !trimmedCode.includes('vue') ||
-    trimmedCode.includes('Alpine.')
-  ) {
-    return {
-      type: 'alpine',
-      needsCompilation: false,
-      cdnLinks: [
-        'https://cdn.jsdelivr.net/npm/alpinejs@3.x.x/dist/cdn.min.js'
-      ]
-    };
-  }
+
   
   // Check if it's already complete HTML
   if (trimmedCode.includes('<!DOCTYPE html') || trimmedCode.includes('<html')) {

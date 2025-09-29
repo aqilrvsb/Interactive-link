@@ -29,16 +29,18 @@ function processReactCode(code: string): string {
       .replace(/export\s+default\s+/g, '');
   }
   
-  // Build complete HTML with React - Using CDN that works without CORS
+  // Build complete HTML with React - Using CDNs that work without CORS issues
   return `<!DOCTYPE html>
 <html lang="en">
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>React App</title>
-    <script crossorigin src="https://unpkg.com/react@18/umd/react.development.min.js"></script>
-    <script crossorigin src="https://unpkg.com/react-dom@18/umd/react-dom.development.min.js"></script>
-    <script src="https://unpkg.com/@babel/standalone@7/babel.min.js"></script>
+    <!-- React CDN via jsDelivr (no CORS issues) -->
+    <script crossorigin src="https://cdn.jsdelivr.net/npm/react@18.2.0/umd/react.development.js"></script>
+    <script crossorigin src="https://cdn.jsdelivr.net/npm/react-dom@18.2.0/umd/react-dom.development.js"></script>
+    <!-- Babel Standalone for JSX transformation -->
+    <script src="https://cdn.jsdelivr.net/npm/@babel/standalone@7.23.5/babel.min.js"></script>
     <style>
         body {
             margin: 0;
@@ -54,13 +56,20 @@ function processReactCode(code: string): string {
             padding: 8px 16px;
             font-size: 16px;
             cursor: pointer;
+            background: #4CAF50;
+            color: white;
+            border: none;
+            border-radius: 4px;
+        }
+        button:hover {
+            background: #45a049;
         }
     </style>
 </head>
 <body>
     <div id="root"></div>
     <script type="text/babel">
-        const { useState } = React;
+        const { useState, useEffect, useRef } = React;
         
         ${componentCode}
         
@@ -71,16 +80,31 @@ function processReactCode(code: string): string {
         if (typeof App !== 'undefined') {
             root.render(React.createElement(App));
         } else {
-            // Fallback: create a simple working component
-            function DefaultApp() {
-                const [count, setCount] = useState(0);
-                return React.createElement('div', null,
-                    React.createElement('h1', null, 'React App'),
-                    React.createElement('p', null, 'Count: ' + count),
-                    React.createElement('button', { onClick: () => setCount(count + 1) }, 'Increment')
-                );
+            // If no App component, try to render any defined function component
+            const possibleComponents = Object.keys(window).filter(key => {
+                try {
+                    return typeof window[key] === 'function' && 
+                           key[0] === key[0].toUpperCase() &&
+                           key !== 'React' && key !== 'ReactDOM';
+                } catch(e) { return false; }
+            });
+            
+            if (possibleComponents.length > 0) {
+                const Component = window[possibleComponents[0]];
+                root.render(React.createElement(Component));
+            } else {
+                // Fallback: create a default component
+                function DefaultApp() {
+                    const [count, setCount] = useState(0);
+                    return React.createElement('div', null,
+                        React.createElement('h1', null, 'React App'),
+                        React.createElement('p', null, 'Count: ' + count),
+                        React.createElement('button', { onClick: () => setCount(count + 1) }, 'Increment'),
+                        React.createElement('button', { onClick: () => setCount(count - 1) }, 'Decrement')
+                    );
+                }
+                root.render(React.createElement(DefaultApp));
             }
-            root.render(React.createElement(DefaultApp));
         }
     </script>
 </body>
@@ -414,23 +438,49 @@ export function getFrameworkTemplate(framework: FrameworkType): string {
   }
 }
 // Framework Templates
-const REACT_TEMPLATE = `function App() {
+const REACT_TEMPLATE = `// React Counter Component (No JSX - Works everywhere)
+function App() {
   const [count, setCount] = React.useState(0);
   
   return React.createElement('div', 
-    { style: { padding: '20px', fontFamily: 'Arial' } },
+    { style: { padding: '20px', fontFamily: 'Arial, sans-serif' } },
     React.createElement('h1', null, 'React Counter App'),
-    React.createElement('p', null, 'Count: ' + count),
+    React.createElement('p', { style: { fontSize: '20px' } }, 'Count: ' + count),
     React.createElement('button', 
-      { onClick: () => setCount(count + 1), style: { marginRight: '10px' } }, 
+      { 
+        onClick: () => setCount(count + 1),
+        style: { 
+          marginRight: '10px',
+          padding: '10px 20px',
+          fontSize: '16px',
+          background: '#4CAF50',
+          color: 'white',
+          border: 'none',
+          borderRadius: '4px',
+          cursor: 'pointer'
+        }
+      }, 
       'Increment'
     ),
     React.createElement('button', 
-      { onClick: () => setCount(count - 1) }, 
+      { 
+        onClick: () => setCount(count - 1),
+        style: { 
+          padding: '10px 20px',
+          fontSize: '16px',
+          background: '#f44336',
+          color: 'white',
+          border: 'none',
+          borderRadius: '4px',
+          cursor: 'pointer'
+        }
+      }, 
       'Decrement'
     )
   );
-}`;
+}
+
+// The component will be automatically rendered`;
 
 const VUE_TEMPLATE = `<template>
   <div>
