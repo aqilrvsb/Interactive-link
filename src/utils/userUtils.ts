@@ -43,6 +43,11 @@ export const getUserDisplayName = (userData: {
   
   return 'Anonymous';
 };
+
+/**
+ * Alias for getUserDisplayName for compatibility
+ */
+export const getDisplayName = getUserDisplayName;
 /**
  * Simple utility to format time ago without external dependencies
  */
