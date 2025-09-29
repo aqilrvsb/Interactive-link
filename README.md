@@ -5,7 +5,6 @@
 **Last Updated**: January 25, 2025 at 10:15 AM UTC  
 **Status**: ![Deployment Status](https://img.shields.io/badge/deployment-testing-blue)  
 **Auto-Deploy**: Testing Vercel integration
-
 ## System Overview
 
 A complete website builder platform where users create projects, share them with the community, and connect custom domains. Each user can have multiple projects with different domains.
