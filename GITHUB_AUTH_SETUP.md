@@ -18,7 +18,7 @@
 ```bash
 # Remote URL (configured)
 git remote -v
-# Shows: https://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@github.com/aqilrvsb/Interactive-link.git
+# Shows: https://YOUR_TOKEN@github.com/aqilrvsb/Interactive-link.git
 ```
 
 ## Future Workflow
