@@ -1,0 +1,14 @@
+{
+  "version": 2,
+  "routes": [
+    {
+      "src": "/(.*)",
+      "dest": "/api/render.js"
+    }
+  ],
+  "functions": {
+    "api/render.js": {
+      "maxDuration": 10
+    }
+  }
+}
