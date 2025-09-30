@@ -2,6 +2,8 @@ import { useState, useEffect, useRef } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
 import { Button } from '@/components/ui/button';
 import { Textarea } from '@/components/ui/textarea';
+import { Input } from '@/components/ui/input';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { ResizablePanelGroup, ResizablePanel, ResizableHandle } from '@/components/ui/resizable';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { ArrowLeft, Save, Settings, Files, Globe, Code2, Maximize, ExternalLink, X, Eye } from 'lucide-react';
@@ -14,7 +16,6 @@ import { supabase } from '@/integrations/supabase/client';
 import { ProjectFilesView } from '@/components/website-builder/ProjectFilesView';
 import { SupabaseSettings } from '@/components/website-builder/SupabaseSettings';
 import { DomainManagement } from '@/components/website-builder/DomainManagement';
-import { ProjectMetadata } from '@/components/website-builder/ProjectMetadata';
 import { FileManager } from '@/utils/fileManager';
 import { toast } from 'sonner';
 
@@ -429,12 +430,41 @@ const WebsiteBuilder = () => {
             <div className="h-full flex flex-col">
               {/* Project Metadata */}
               <div className="border-b p-4">
-                <ProjectMetadata
-                  kategori={kategori}
-                  tahun={tahun}
-                  onKategoriChange={setKategori}
-                  onTahunChange={setTahun}
-                />
+                <div className="flex items-center gap-4">
+                  <div className="flex-1">
+                    <label className="text-sm font-medium mb-2 block">Kategori</label>
+                    <Select value={kategori} onValueChange={setKategori}>
+                      <SelectTrigger>
+                        <SelectValue placeholder="Pilih Kategori" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="Matematik">Matematik</SelectItem>
+                        <SelectItem value="Sejarah">Sejarah</SelectItem>
+                        <SelectItem value="Sains">Sains</SelectItem>
+                        <SelectItem value="Bahasa Melayu">Bahasa Melayu</SelectItem>
+                        <SelectItem value="Bahasa Inggeris">Bahasa Inggeris</SelectItem>
+                        <SelectItem value="Pendidikan Islam">Pendidikan Islam</SelectItem>
+                      </SelectContent>
+                    </Select>
+                  </div>
+                  <div className="flex-1">
+                    <label className="text-sm font-medium mb-2 block">Tahun</label>
+                    <Input
+                      type="number"
+                      min="1"
+                      max="3"
+                      value={tahun || ''}
+                      onChange={(e) => setTahun(e.target.value ? parseInt(e.target.value) : undefined)}
+                      placeholder="Contoh: 2024"
+                    />
+                  </div>
+                  <div className="flex items-end">
+                    <Button variant="outline" size="sm" className="h-10">
+                      <Eye className="h-4 w-4 mr-2" />
+                      Preview
+                    </Button>
+                  </div>
+                </div>
               </div>
               
               <Tabs defaultValue="preview" className="flex-1 flex flex-col">
