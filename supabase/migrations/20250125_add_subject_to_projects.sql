@@ -13,7 +13,7 @@ ADD COLUMN IF NOT EXISTS kategori VARCHAR(50) CHECK (kategori IN (
   'Bahasa Inggeris',
   'Pendidikan Islam'
 )),
-ADD COLUMN IF NOT EXISTS tahun INTEGER CHECK (tahun >= 1900 AND tahun <= 2100);
+ADD COLUMN IF NOT EXISTS tahun INTEGER CHECK (tahun >= 1 AND tahun <= 3);
 
 -- Create performance indexes for better query performance
 CREATE INDEX IF NOT EXISTS idx_projects_kategori ON projects(kategori);

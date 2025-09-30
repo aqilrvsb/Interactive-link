@@ -455,7 +455,7 @@ const WebsiteBuilder = () => {
                       max="3"
                       value={tahun || ''}
                       onChange={(e) => setTahun(e.target.value ? parseInt(e.target.value) : undefined)}
-                      placeholder="Contoh: 2024"
+                      placeholder="Tingkatan (1, 2, atau 3)"
                     />
                   </div>
                   <div className="flex items-end">

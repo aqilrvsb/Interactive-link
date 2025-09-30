@@ -25,6 +25,8 @@ interface CommunityProject {
   user_id: string;
   user_email?: string;
   user_username?: string;
+  kategori?: string;
+  tahun?: number;
   domains: Array<{
     domain_name: string;
     status: string;
@@ -35,8 +37,8 @@ const ProjectCommunity = () => {
   const [projects, setProjects] = useState<CommunityProject[]>([]);
   const [loading, setLoading] = useState(true);
   const [searchTerm, setSearchTerm] = useState('');
-  const [selectedKategori, setSelectedKategori] = useState<string>('');
-  const [selectedTahun, setSelectedTahun] = useState<string>('');
+  const [selectedKategori, setSelectedKategori] = useState<string>('all');
+  const [selectedTahun, setSelectedTahun] = useState<string>('all');
   const [userProjects, setUserProjects] = useState<Set<number>>(new Set());
   const { user } = useAuth();
   const navigate = useNavigate();
@@ -59,7 +61,9 @@ const ProjectCommunity = () => {
           is_public,
           is_community_visible,
           created_at,
-          user_id
+          user_id,
+          kategori,
+          tahun
         `)
         .eq('is_public', true)
         .eq('is_community_visible', true)
@@ -146,8 +150,8 @@ const ProjectCommunity = () => {
     const matchesSearch = project.title.toLowerCase().includes(searchTerm.toLowerCase()) ||
       project.domains.some(d => d.domain_name.toLowerCase().includes(searchTerm.toLowerCase()));
     
-    const matchesKategori = !selectedKategori || project.kategori === selectedKategori;
-    const matchesTahun = !selectedTahun || project.tahun?.toString() === selectedTahun;
+    const matchesKategori = !selectedKategori || selectedKategori === 'all' || project.kategori === selectedKategori;
+    const matchesTahun = !selectedTahun || selectedTahun === 'all' || project.tahun?.toString() === selectedTahun;
     
     return matchesSearch && matchesKategori && matchesTahun;
   });
@@ -216,10 +220,10 @@ const ProjectCommunity = () => {
                   </div>
                 </SelectTrigger>
                 <SelectContent>
-                  <SelectItem value="">All Categories</SelectItem>
+                  <SelectItem value="all">All Categories</SelectItem>
                   {KATEGORI_OPTIONS.map((kategori) => (
-                    <SelectItem key={kategori.value} value={kategori.value}>
-                      {kategori.label}
+                    <SelectItem key={kategori} value={kategori}>
+                      {kategori}
                     </SelectItem>
                   ))}
                 </SelectContent>
@@ -230,7 +234,7 @@ const ProjectCommunity = () => {
                   <SelectValue placeholder="Year" />
                 </SelectTrigger>
                 <SelectContent>
-                  <SelectItem value="">All Years</SelectItem>
+                  <SelectItem value="all">All Years</SelectItem>
                   {Array.from(new Set(projects.map(p => p.tahun).filter(Boolean)))
                     .sort((a, b) => (b || 0) - (a || 0))
                     .map((year) => (
@@ -244,25 +248,25 @@ const ProjectCommunity = () => {
           </div>
           
           {/* Active Filters */}
-          {(selectedKategori || selectedTahun) && (
+          {((selectedKategori && selectedKategori !== 'all') || (selectedTahun && selectedTahun !== 'all')) && (
             <div className="flex items-center gap-2 flex-wrap">
               <span className="text-sm text-muted-foreground">Active filters:</span>
-              {selectedKategori && (
+              {selectedKategori && selectedKategori !== 'all' && (
                 <Badge variant="secondary" className="flex items-center gap-1">
-                  {KATEGORI_OPTIONS.find(k => k.value === selectedKategori)?.label}
+                  {selectedKategori}
                   <button
-                    onClick={() => setSelectedKategori('')}
+                    onClick={() => setSelectedKategori('all')}
                     className="ml-1 hover:bg-muted-foreground/20 rounded-full p-0.5"
                   >
                     ×
                   </button>
                 </Badge>
               )}
-              {selectedTahun && (
+              {selectedTahun && selectedTahun !== 'all' && (
                 <Badge variant="secondary" className="flex items-center gap-1">
                   {selectedTahun}
                   <button
-                    onClick={() => setSelectedTahun('')}
+                    onClick={() => setSelectedTahun('all')}
                     className="ml-1 hover:bg-muted-foreground/20 rounded-full p-0.5"
                   >
                     ×
