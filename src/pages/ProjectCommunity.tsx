@@ -1,17 +1,18 @@
 import { useState, useEffect } from 'react';
-import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
+import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
-import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Skeleton } from '@/components/ui/skeleton';
-import { Globe, Lock, Unlock, ExternalLink, Search, Users, ArrowLeft, Eye, Calendar } from 'lucide-react';
+import { ArrowLeft, Users, Search, Globe, ExternalLink, Eye, Calendar, Lock, Unlock, Filter } from 'lucide-react';
 import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/contexts/AuthContext';
 import { getUsersInfo } from '@/utils/communityUtils';
 import { formatTimeAgo } from '@/utils/userUtils';
 import { toast } from 'sonner';
+import { KATEGORI_OPTIONS } from '@/components/website-builder/CategorySelector';
 
 interface CommunityProject {
   id: number;
@@ -34,6 +35,8 @@ const ProjectCommunity = () => {
   const [projects, setProjects] = useState<CommunityProject[]>([]);
   const [loading, setLoading] = useState(true);
   const [searchTerm, setSearchTerm] = useState('');
+  const [selectedKategori, setSelectedKategori] = useState<string>('');
+  const [selectedTahun, setSelectedTahun] = useState<string>('');
   const [userProjects, setUserProjects] = useState<Set<number>>(new Set());
   const { user } = useAuth();
   const navigate = useNavigate();
@@ -139,10 +142,15 @@ const ProjectCommunity = () => {
     }
   };
 
-  const filteredProjects = projects.filter(project =>
-    project.title.toLowerCase().includes(searchTerm.toLowerCase()) ||
-    project.domains.some(d => d.domain_name.toLowerCase().includes(searchTerm.toLowerCase()))
-  );
+  const filteredProjects = projects.filter(project => {
+    const matchesSearch = project.title.toLowerCase().includes(searchTerm.toLowerCase()) ||
+      project.domains.some(d => d.domain_name.toLowerCase().includes(searchTerm.toLowerCase()));
+    
+    const matchesKategori = !selectedKategori || project.kategori === selectedKategori;
+    const matchesTahun = !selectedTahun || project.tahun?.toString() === selectedTahun;
+    
+    return matchesSearch && matchesKategori && matchesTahun;
+  });
 
   if (loading) {
     return (
@@ -186,17 +194,94 @@ const ProjectCommunity = () => {
           </div>
         </div>
 
-        {/* Search */}
-        <div className="mb-6">
-          <div className="relative max-w-md">
-            <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
-            <Input
-              placeholder="Search projects or domains..."
-              value={searchTerm}
-              onChange={(e) => setSearchTerm(e.target.value)}
-              className="pl-9"
-            />
+        {/* Search and Filters */}
+        <div className="mb-6 space-y-4">
+          <div className="flex flex-col sm:flex-row gap-4">
+            <div className="relative flex-1 max-w-md">
+              <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+              <Input
+                placeholder="Search projects or domains..."
+                value={searchTerm}
+                onChange={(e) => setSearchTerm(e.target.value)}
+                className="pl-9"
+              />
+            </div>
+            
+            <div className="flex gap-2">
+              <Select value={selectedKategori} onValueChange={setSelectedKategori}>
+                <SelectTrigger className="w-48">
+                  <div className="flex items-center gap-2">
+                    <Filter className="h-4 w-4" />
+                    <SelectValue placeholder="Filter by Category" />
+                  </div>
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="">All Categories</SelectItem>
+                  {KATEGORI_OPTIONS.map((kategori) => (
+                    <SelectItem key={kategori.value} value={kategori.value}>
+                      {kategori.label}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+              
+              <Select value={selectedTahun} onValueChange={setSelectedTahun}>
+                <SelectTrigger className="w-32">
+                  <SelectValue placeholder="Year" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="">All Years</SelectItem>
+                  {Array.from(new Set(projects.map(p => p.tahun).filter(Boolean)))
+                    .sort((a, b) => (b || 0) - (a || 0))
+                    .map((year) => (
+                      <SelectItem key={year} value={year!.toString()}>
+                        {year}
+                      </SelectItem>
+                    ))}
+                </SelectContent>
+              </Select>
+            </div>
           </div>
+          
+          {/* Active Filters */}
+          {(selectedKategori || selectedTahun) && (
+            <div className="flex items-center gap-2 flex-wrap">
+              <span className="text-sm text-muted-foreground">Active filters:</span>
+              {selectedKategori && (
+                <Badge variant="secondary" className="flex items-center gap-1">
+                  {KATEGORI_OPTIONS.find(k => k.value === selectedKategori)?.label}
+                  <button
+                    onClick={() => setSelectedKategori('')}
+                    className="ml-1 hover:bg-muted-foreground/20 rounded-full p-0.5"
+                  >
+                    ×
+                  </button>
+                </Badge>
+              )}
+              {selectedTahun && (
+                <Badge variant="secondary" className="flex items-center gap-1">
+                  {selectedTahun}
+                  <button
+                    onClick={() => setSelectedTahun('')}
+                    className="ml-1 hover:bg-muted-foreground/20 rounded-full p-0.5"
+                  >
+                    ×
+                  </button>
+                </Badge>
+              )}
+              <Button
+                variant="ghost"
+                size="sm"
+                onClick={() => {
+                  setSelectedKategori('');
+                  setSelectedTahun('');
+                }}
+                className="text-xs"
+              >
+                Clear all
+              </Button>
+            </div>
+          )}
         </div>
 
         {/* Projects Grid */}
@@ -270,6 +355,22 @@ const ProjectCommunity = () => {
                         <span className="text-xs text-muted-foreground">
                           +{project.domains.length - 2} more domains
                         </span>
+                      )}
+                    </div>
+                  )}
+
+                  {/* Category and Year */}
+                  {(project.kategori || project.tahun) && (
+                    <div className="flex items-center gap-2 mb-3 flex-wrap">
+                      {project.kategori && (
+                        <Badge variant="default" className="bg-blue-100 text-blue-800 hover:bg-blue-200 text-xs">
+                          {project.kategori}
+                        </Badge>
+                      )}
+                      {project.tahun && (
+                        <Badge variant="outline" className="border-green-200 text-green-700 text-xs">
+                          {project.tahun}
+                        </Badge>
                       )}
                     </div>
                   )}

@@ -457,10 +457,20 @@ const Dashboard = () => {
                 </CardHeader>
                 <CardContent>
                   <div className="flex items-center justify-between">
-                    <div className="flex items-center gap-2">
+                    <div className="flex items-center gap-2 flex-wrap">
                       <Badge variant="secondary">{project.language}</Badge>
                       {project.ai_model && (
                         <Badge variant="outline">{project.ai_model}</Badge>
+                      )}
+                      {project.kategori && (
+                        <Badge variant="default" className="bg-blue-100 text-blue-800 hover:bg-blue-200">
+                          {project.kategori}
+                        </Badge>
+                      )}
+                      {project.tahun && (
+                        <Badge variant="outline" className="border-green-200 text-green-700">
+                          {project.tahun}
+                        </Badge>
                       )}
                     </div>
                     <div className="flex items-center gap-1 text-sm text-muted-foreground">

@@ -14,6 +14,7 @@ import { supabase } from '@/integrations/supabase/client';
 import { ProjectFilesView } from '@/components/website-builder/ProjectFilesView';
 import { SupabaseSettings } from '@/components/website-builder/SupabaseSettings';
 import { DomainManagement } from '@/components/website-builder/DomainManagement';
+import { ProjectMetadata } from '@/components/website-builder/ProjectMetadata';
 import { FileManager } from '@/utils/fileManager';
 import { toast } from 'sonner';
 
@@ -92,6 +93,8 @@ const WebsiteBuilder = () => {
   const [currentProject, setCurrentProject] = useState<any>(null);
   const [isFullPreview, setIsFullPreview] = useState(false);
   const [isLoading, setIsLoading] = useState(true);
+  const [kategori, setKategori] = useState<string>('');
+  const [tahun, setTahun] = useState<number | undefined>(undefined);
   const fullPreviewIframeRef = useRef<HTMLIFrameElement>(null);
 
   // Load project on mount and when projectId changes
@@ -125,6 +128,9 @@ const WebsiteBuilder = () => {
             } else {
               setCode(DEFAULT_HTML);
             }
+            // Load kategori and tahun values
+            setKategori(projectData.kategori || '');
+            setTahun(projectData.tahun || undefined);
           } else {
             // Project not found, load default
             setCode(DEFAULT_HTML);
@@ -270,6 +276,8 @@ const WebsiteBuilder = () => {
           code_content: code,
           language: 'html',
           is_public: true,  // Make public by default for sharing
+          kategori: kategori || undefined,
+          tahun: tahun || undefined,
         });
         
         if (!project) {
@@ -284,6 +292,8 @@ const WebsiteBuilder = () => {
         project = await updateProject(project.id, {
           code_content: code,
           is_public: true,  // Make public for sharing
+          kategori: kategori || undefined,
+          tahun: tahun || undefined,
           updated_at: new Date().toISOString()
         });
       }
@@ -416,15 +426,26 @@ const WebsiteBuilder = () => {
 
           {/* Preview Panel */}
           <ResizablePanel defaultSize={70} minSize={30}>
-            <Tabs defaultValue="preview" className="h-full flex flex-col">
-              <div className="border-b px-4 py-2">
-                <TabsList className="h-9">
-                  <TabsTrigger value="preview" className="text-xs">
-                    <Eye className="h-3 w-3 mr-1" />
-                    Live Preview
-                  </TabsTrigger>
-                </TabsList>
+            <div className="h-full flex flex-col">
+              {/* Project Metadata */}
+              <div className="border-b p-4">
+                <ProjectMetadata
+                  kategori={kategori}
+                  tahun={tahun}
+                  onKategoriChange={setKategori}
+                  onTahunChange={setTahun}
+                />
               </div>
+              
+              <Tabs defaultValue="preview" className="flex-1 flex flex-col">
+                <div className="border-b px-4 py-2">
+                  <TabsList className="h-9">
+                    <TabsTrigger value="preview" className="text-xs">
+                      <Eye className="h-3 w-3 mr-1" />
+                      Live Preview
+                    </TabsTrigger>
+                  </TabsList>
+                </div>
 
               <TabsContent value="preview" className="flex-1 relative overflow-hidden m-0">
                 <div className="absolute top-2 right-2 z-10 flex gap-2">
@@ -443,7 +464,8 @@ const WebsiteBuilder = () => {
                   title="Preview"
                 />
               </TabsContent>
-            </Tabs>
+              </Tabs>
+            </div>
           </ResizablePanel>
         </ResizablePanelGroup>
       </div>

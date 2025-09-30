@@ -14,6 +14,8 @@ export interface Project {
   ai_model?: string;
   prompt?: string;
   is_public: boolean;
+  kategori?: string;  // New field for subject category
+  tahun?: number;     // New field for academic year
   created_at: string;
   updated_at: string;
 }
