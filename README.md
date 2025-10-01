@@ -1,13 +1,37 @@
-# CepatBina - Multi-Tenant Website Builder with Custom Domain Support
+# 🚀 Interactive-link (CepatBina)
 
-## 🚀 Deployment Status
+### AI-Powered Multi-Tenant Website Builder with Custom Domain Support
 
-**Last Updated**: January 25, 2025 at 10:15 AM UTC  
-**Status**: ![Deployment Status](https://img.shields.io/badge/deployment-testing-blue)  
-**Auto-Deploy**: Testing Vercel integration
-## System Overview
+<div align="center">
 
-A complete website builder platform where users create projects, share them with the community, and connect custom domains. Each user can have multiple projects with different domains.
+![Deployment Status](https://img.shields.io/badge/deployment-live-brightgreen)
+![TypeScript](https://img.shields.io/badge/TypeScript-007ACC?logo=typescript&logoColor=white)
+![React](https://img.shields.io/badge/React-61DAFB?logo=react&logoColor=black)
+![Vite](https://img.shields.io/badge/Vite-646CFF?logo=vite&logoColor=white)
+![Supabase](https://img.shields.io/badge/Supabase-3ECF8E?logo=supabase&logoColor=white)
+![Vercel](https://img.shields.io/badge/Vercel-000000?logo=vercel&logoColor=white)
+![Tailwind CSS](https://img.shields.io/badge/Tailwind_CSS-38B2AC?logo=tailwind-css&logoColor=white)
+
+**Last Updated**: October 1, 2025  
+**Status**: Production Ready ✨  
+**Auto-Deploy**: Enabled via GitHub → Vercel Integration
+
+[🌐 Live Demo](https://cepatbina.com) • [📚 Documentation](#documentation) • [🐛 Report Bug](https://github.com/aqilrvsb/Interactive-link/issues) • [✨ Request Feature](https://github.com/aqilrvsb/Interactive-link/issues)
+
+</div>
+
+---
+
+## 🎯 System Overview
+
+A complete **AI-powered website builder platform** where users can:
+- 🤖 **Chat with AI** to create and edit projects
+- 🌐 **Build and deploy** websites instantly
+- 🔗 **Connect custom domains** to any project
+- 👥 **Share in the community** for discovery
+- 📂 **Manage multiple projects** with version control
+
+Each user can create unlimited projects, each with its own custom domains, categories, and visibility settings.
 
 ## Live Demo Example
 
